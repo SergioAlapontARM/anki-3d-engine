@@ -402,7 +402,8 @@ public:
 	void upscaleInternal(const GrUpscalerPtr& upscaler, const TextureViewPtr& inColor,
 						 const TextureViewPtr& outUpscaledColor, const TextureViewPtr& motionVectors,
 						 const TextureViewPtr& depth, const TextureViewPtr& exposure, const Bool resetAccumulation,
-						 const Vec2& jitterOffset, const Vec2& motionVectorsScale);
+						 const Vec2& jitterOffset, const Vec2& motionVectorsScale, const F32 cameraNear,
+						 const F32 cameraFar, const F32 cameraFovV);
 
 	void setPushConstantsInternal(const void* data, U32 dataSize);
 
@@ -604,6 +605,12 @@ private:
 	}
 };
 /// @}
+
+void NewFunction(const anki::GrUpscalerPtr& upscaler, const anki::TextureViewPtr& inColor,
+				 const anki::TextureViewPtr& outUpscaledColor, const anki::TextureViewPtr& motionVectors,
+				 const anki::TextureViewPtr& depth, const anki::TextureViewPtr& exposure,
+				 const anki::Vec2& jitterOffset, const anki::Bool& resetAccumulation,
+				 const anki::Vec2& motionVectorsScale);
 
 } // end namespace anki
 

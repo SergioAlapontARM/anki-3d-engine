@@ -17,8 +17,8 @@
 #	pragma warning(disable : 4505)
 #endif
 #define A_CPU
-#include <ThirdParty/FidelityFX/ffx_a.h>
-#include <ThirdParty/FidelityFX/ffx_spd.h>
+#include <ThirdParty/FidelityFX/fsr1/ffx_a.h>
+#include <ThirdParty/FidelityFX/fsr1/ffx_spd.h>
 #if ANKI_COMPILER_GCC_COMPATIBLE
 #	pragma GCC diagnostic pop
 #elif ANKI_COMPILER_MSVC

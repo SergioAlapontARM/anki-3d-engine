@@ -31,7 +31,7 @@ layout(push_constant, std430) uniform b_pc
 #define A_GPU 1
 #define A_GLSL 1
 #define A_HALF 1
-#include <ThirdParty/FidelityFX/ffx_a.h>
+#include <ThirdParty/FidelityFX/fsr1/ffx_a.h>
 
 #if SHARPEN
 #	define FSR_RCAS_H 1
@@ -69,7 +69,7 @@ AH3 FsrEasuSampleH(AF2 p)
 }
 #endif
 
-#include <ThirdParty/FidelityFX/ffx_fsr1.h>
+#include <ThirdParty/FidelityFX/fsr1/ffx_fsr1.h>
 // FSR end
 
 void main()

@@ -422,9 +422,13 @@ public:
 	/// @param[in] jitterOffset Jittering offset that was applied during the generation of sourceTexture
 	/// @param[in] motionVectorsScale Any scale factor that might need to be applied to the motionVectorsTexture (i.e UV
 	///                               space to Pixel space conversion)
+	/// @param[in] cameraNear near plane of the camera
+	/// @param[in] cameraFar far plane of the camera
+	/// @param[in] cameraFovV vertical fov of the camera (in radians)
 	void upscale(const GrUpscalerPtr& upscaler, const TextureViewPtr& inColor, const TextureViewPtr& outUpscaledColor,
 				 const TextureViewPtr& motionVectors, const TextureViewPtr& depth, const TextureViewPtr& exposure,
-				 const Bool resetAccumulation, const Vec2& jitterOffset, const Vec2& motionVectorsScale);
+				 const Bool resetAccumulation, const Vec2& jitterOffset, const Vec2& motionVectorsScale,
+				 const F32 cameraNear, const F32 cameraFar, const F32 cameraFovV);
 
 	/// @}
 

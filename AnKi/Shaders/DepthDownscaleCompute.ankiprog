@@ -37,7 +37,7 @@ layout(set = 0, binding = 5) uniform texture2D u_srcTex;
 // Include SPD
 #define A_GPU 1
 #define A_GLSL 1
-#include <ThirdParty/FidelityFX/ffx_a.h>
+#include <ThirdParty/FidelityFX/fsr1/ffx_a.h>
 
 shared AU1 s_spdCounter;
 shared AF1 s_spdIntermediateR[16][16];
@@ -109,7 +109,7 @@ AF4 SpdReduce4(AF4 v0, AF4 v1, AF4 v2, AF4 v3)
 #	define SPD_NO_WAVE_OPERATIONS 1
 #endif
 
-#include <ThirdParty/FidelityFX/ffx_spd.h>
+#include <ThirdParty/FidelityFX/fsr1/ffx_spd.h>
 
 void main()
 {

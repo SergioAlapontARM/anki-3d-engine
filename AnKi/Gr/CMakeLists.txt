@@ -75,8 +75,8 @@ if(VULKAN)
 		Vulkan/VulkanObject.cpp
 		Vulkan/FrameGarbageCollector.cpp
 		Vulkan/GrUpscaler.cpp
-		Vulkan/GrUpscalerImpl.cpp)
-
+		Vulkan/GrUpscalerImpl.cpp
+		${ANKI_FSR2_VK_SRCS})
 	set(backend_headers
 		Vulkan/AccelerationStructureImpl.h
 		Vulkan/BufferImpl.h
@@ -113,7 +113,11 @@ if(VULKAN)
 		Vulkan/TextureViewImpl.h
 		Vulkan/TimestampQueryImpl.h
 		Vulkan/VulkanObject.h
-		Vulkan/GrUpscalerImpl.h)
+		Vulkan/GrUpscalerImpl.h
+		${ANKI_FSR2_VK_SHADERS})
+
+		source_group("fsr2_sources"  FILES ${ANKI_FSR2_VK_SRCS} )
+		source_group("fsr2_shaders" FILES ${ANKI_FSR2_VK_SHADERS})
 
 	if(ANKI_HEADLESS)
 		set(backend_sources ${backend_sources} "Vulkan/GrManagerImplHeadless.cpp")
@@ -131,8 +135,9 @@ add_library(AnKiGrCommon ${common_sources} ${common_headers})
 target_compile_definitions(AnKiGrCommon PRIVATE -DANKI_SOURCE_FILE)
 target_link_libraries(AnKiGrCommon AnKiUtil) # Only depend on Util
 
+set(extra_libs AnkiFsr2Api)
 if(ANKI_DLSS)
-	set(extra_libs AnKiNgx)
+	set(extra_libs ${extra_libs} AnKiNgx)
 endif()
 
 add_library(AnKiGr ${backend_sources} ${backend_headers})

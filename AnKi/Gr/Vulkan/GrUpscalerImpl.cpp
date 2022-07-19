@@ -17,6 +17,10 @@
 #	include <ThirdParty/DlssSdk/sdk/include/nvsdk_ngx_helpers_vk.h>
 #endif
 
+// FSR related
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/ffx_fsr2.h>
+#include <FidelityFX/fsr2/ffx-fsr2-api/vk/ffx_fsr2_vk.h>
+
 namespace anki {
 
 GrUpscalerImpl::~GrUpscalerImpl()
@@ -27,18 +31,31 @@ GrUpscalerImpl::~GrUpscalerImpl()
 		destroyDlss();
 	}
 #endif
+	if(m_upscalerType == GrUpscalerType::FSR_2)
+	{
+		destroyFsr2();
+	}
 }
 
 Error GrUpscalerImpl::initInternal(const GrUpscalerInitInfo& initInfo)
 {
 	m_upscalerType = initInfo.m_upscalerType;
 
+	// Try to use DLSS
+	if(m_upscalerType == GrUpscalerType::DLSS_2)
+	{
 #if ANKI_DLSS
-	ANKI_ASSERT(initInfo.m_upscalerType == GrUpscalerType::DLSS_2);
-	ANKI_CHECK(initDlss(initInfo));
+		ANKI_CHECK(initDlss(initInfo));
 #else
-	ANKI_ASSERT(!"Not supported");
+		return Error::FUNCTION_FAILED;
 #endif
+	}
+
+	// Use FSR 2
+	if(m_upscalerType == GrUpscalerType::FSR_2)
+	{
+		ANKI_CHECK(initFsr2(initInfo));
+	}
 
 	return Error::NONE;
 }
@@ -174,5 +191,43 @@ void GrUpscalerImpl::destroyDlss()
 	}
 }
 #endif // ANKI_DLSS
+
+Error GrUpscalerImpl::initFsr2(const GrUpscalerInitInfo& initInfo)
+{
+	const VkPhysicalDevice physicaldevice = getGrManagerImpl().getPhysicalDevice();
+	m_fsr2MemorySize = ffxFsr2GetScratchMemorySizeVK(physicaldevice);
+	m_fsr2Memory = getAllocator().allocate(m_fsr2MemorySize);
+	FfxFsr2ContextDescription fsr2Init{};
+	ANKI_ASSERT(!m_fsr2Memory);
+	FfxErrorCode errorCode = ffxFsr2GetInterfaceVK(&fsr2Init.callbacks, m_fsr2Memory, m_fsr2MemorySize,
+												   physicaldevice, vkGetDeviceProcAddr);
+	FFX_ASSERT(errorCode == FFX_OK);
+
+	const VkDevice device = getGrManagerImpl().getDevice();
+	fsr2Init.device = ffxGetDeviceVK(device);
+	fsr2Init.maxRenderSize.width = initInfo.m_sourceTextureResolution.x();
+	fsr2Init.maxRenderSize.height = initInfo.m_sourceTextureResolution.y();
+	fsr2Init.displaySize.width = initInfo.m_targetTextureResolution.x();
+	fsr2Init.displaySize.height = initInfo.m_targetTextureResolution.y();
+	fsr2Init.flags = FFX_FSR2_ENABLE_HIGH_DYNAMIC_RANGE;
+
+	ANKI_ASSERT(!m_fsr2Ctx);
+	m_fsr2Ctx = getAllocator().newInstance<FfxFsr2Context>();
+	errorCode = ffxFsr2ContextCreate(m_fsr2Ctx, &fsr2Init);
+	FFX_ASSERT(errorCode == FFX_OK);
+
+	return Error::NONE;
+}
+
+void GrUpscalerImpl::destroyFsr2()
+{
+	// Destroy FSR2 context (ownership of the memory belongs to the user)
+	ffxFsr2ContextDestroy(m_fsr2Ctx);
+
+	getAllocator().deleteInstance<FfxFsr2Context>(m_fsr2Ctx);
+	getAllocator().deallocate(m_fsr2Memory, m_fsr2MemorySize);
+	m_fsr2Ctx = nullptr;
+	m_fsr2Memory = nullptr;
+}
 
 } // end namespace anki

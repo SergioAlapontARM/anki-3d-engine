@@ -8,6 +8,7 @@
 #include <AnKi/Renderer/TemporalAA.h>
 #include <AnKi/Core/ConfigSet.h>
 
+#include <AnKi/Renderer/RenderQueue.h>
 #include <AnKi/Renderer/LightShading.h>
 #include <AnKi/Renderer/MotionVectors.h>
 #include <AnKi/Renderer/GBuffer.h>
@@ -22,8 +23,8 @@
 #	pragma warning(disable : 4505)
 #endif
 #define A_CPU
-#include <ThirdParty/FidelityFX/ffx_a.h>
-#include <ThirdParty/FidelityFX/ffx_fsr1.h>
+#include <ThirdParty/FidelityFX/fsr1/ffx_a.h>
+#include <ThirdParty/FidelityFX/fsr1/ffx_fsr1.h>
 #if ANKI_COMPILER_GCC_COMPATIBLE
 #	pragma GCC diagnostic pop
 #elif ANKI_COMPILER_MSVC
@@ -48,10 +49,11 @@ Error Scale::init()
 	const Bool preferCompute = getConfig().getRPreferCompute();
 	const U32 dlssQuality = getConfig().getRDlssQuality();
 	const U32 fsrQuality = getConfig().getRFsrQuality();
+	const U32 fsr2Quality = getConfig().getRFsr2Quality();
 
 	if(needsScaling)
 	{
-		if(dlssQuality > 0 && getGrManager().getDeviceCapabilities().m_dlss)
+		if((dlssQuality > 0 && getGrManager().getDeviceCapabilities().m_dlss) || (fsr2Quality > 0))
 		{
 			m_upscalingMethod = UpscalingMethod::GR;
 		}
@@ -107,11 +109,12 @@ Error Scale::init()
 	}
 	else if(m_upscalingMethod == UpscalingMethod::GR)
 	{
+		Bool isDlss = (dlssQuality > 0 && getGrManager().getDeviceCapabilities().m_dlss);
 		GrUpscalerInitInfo inf;
 		inf.m_sourceTextureResolution = m_r->getInternalResolution();
 		inf.m_targetTextureResolution = m_r->getPostProcessResolution();
-		inf.m_upscalerType = GrUpscalerType::DLSS_2;
-		inf.m_qualityMode = GrUpscalerQualityMode(dlssQuality - 1);
+		inf.m_upscalerType = isDlss ? GrUpscalerType::DLSS_2 : GrUpscalerType::FSR_2;
+		inf.m_qualityMode = GrUpscalerQualityMode(isDlss ? (dlssQuality - 1) : (fsr2Quality - 1));
 
 		m_grUpscaler = getGrManager().newGrUpscaler(inf);
 	}
@@ -196,7 +199,8 @@ void Scale::populateRenderGraph(RenderingContext& ctx)
 		m_runCtx.m_upscaledHdrRt = rgraph.newRenderTarget(m_upscaleAndSharpenRtDescr);
 		m_runCtx.m_upscaledTonemappedRt = {};
 
-		ComputeRenderPassDescription& pass = ctx.m_renderGraphDescr.newComputeRenderPass("DLSS");
+		CString passName((m_grUpscaler->getUpscalerType() == GrUpscalerType::DLSS_2) ? "DLSS" : "FSR2");
+		ComputeRenderPassDescription& pass = ctx.m_renderGraphDescr.newComputeRenderPass(passName);
 
 		// DLSS says input textures in sampled state and out as storage image
 		const TextureUsageBit readUsage = TextureUsageBit::ALL_SAMPLED & TextureUsageBit::ALL_COMPUTE;
@@ -449,7 +453,7 @@ void Scale::runGrUpscaling(RenderingContext& ctx, RenderPassWorkContext& rgraphC
 	TextureViewPtr dstView = rgraphCtx.createTextureView(m_runCtx.m_upscaledHdrRt);
 
 	cmdb->upscale(m_grUpscaler, srcView, dstView, motionVectorsView, depthView, exposureView, reset, jitterOffset,
-				  mvScale);
+				  mvScale, ctx.m_renderQueue->m_cameraNear, ctx.m_renderQueue->m_cameraFar, ctx.m_renderQueue->m_cameraFovY);
 }
 
 void Scale::runTonemapping(RenderPassWorkContext& rgraphCtx)

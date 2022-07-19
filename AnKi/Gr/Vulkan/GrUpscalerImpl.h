@@ -12,6 +12,9 @@
 // Ngx Sdk forward declarations
 struct NVSDK_NGX_Parameter;
 struct NVSDK_NGX_Handle;
+// FSR2 forward declarations
+struct FfxFsr2Interface;
+struct FfxFsr2Context;
 
 namespace anki {
 
@@ -58,7 +61,20 @@ public:
 #endif
 	/// @}
 
+	/// @name FSR 2.0 data accessors
+	/// @{
+	FfxFsr2Context& getFsr2Ctx() const
+	{
+		return *m_fsr2Ctx;
+	}
+	/// @}
+
 private:
+
+	FfxFsr2Context* m_fsr2Ctx = nullptr;
+	void* m_fsr2Memory = nullptr;
+	size_t m_fsr2MemorySize = 0;
+
 #if ANKI_DLSS
 	NVSDK_NGX_Parameter* m_ngxParameters = nullptr;
 	NVSDK_NGX_Handle* m_dlssFeature = nullptr;
@@ -71,6 +87,10 @@ private:
 
 	Error createDlssFeature(const UVec2& srcRes, const UVec2& dstRes, const GrUpscalerQualityMode mode);
 #endif
+
+	Error initFsr2(const GrUpscalerInitInfo& initInfo);
+
+	void destroyFsr2();
 };
 /// @}
 

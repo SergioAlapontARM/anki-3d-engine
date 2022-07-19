@@ -18,6 +18,7 @@ namespace anki {
 enum class GrUpscalerType : U8
 {
 	DLSS_2 = 0,
+	FSR_2,
 	COUNT
 };
 
