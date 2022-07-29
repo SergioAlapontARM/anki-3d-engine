@@ -19,8 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-cmake_minimum_required(VERSION 3.15)
-
 set(FSR2_AUTO_COMPILE_SHADERS ON CACHE BOOL "Compile shaders automatically as a prebuild step.")
 
 if(CMAKE_GENERATOR STREQUAL "Ninja")
@@ -33,23 +31,10 @@ if(CMAKE_GENERATOR STREQUAL "Visual Studio 16 2019")
     set(FSR2_VS_VERSION 2019)
 endif()
 
-# Embed PDBs in the debug versions of the libs
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Z7")
-
-# Write both debug and release versions of the static libs to the /lib folder as they are uniquely named
-#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_HOME_DIRECTORY}/bin/ffx_fsr2_api/)
-#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${CMAKE_HOME_DIRECTORY}/bin/ffx_fsr2_api/)
-
-add_compile_definitions(_UNICODE)
-add_compile_definitions(UNICODE)
-
 if(FSR2_VS_VERSION STREQUAL 2015)
     message(NOTICE "Forcing the SDK path for VS 2015")
     set(CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION "10.0.18362.0")
 endif()
-
-#set(FFX_SC_EXECUTABLE
-#    ${CMAKE_CURRENT_SOURCE_DIR}/../tools/sc/FidelityFX_SC.exe)
 
 set(FFX_SC_BASE_ARGS
     -reflection -deps=gcc -DFFX_GPU=1 -DOPT_PRECOMPUTE_REACTIVE_MAX=1)
@@ -67,10 +52,6 @@ file(GLOB SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/*.h")
 
 add_library(AnkiFsr2Api      STATIC ${SOURCES})
-
-# graphics api backends
-message("Will build FSR2 library: Vulkan backend")
-add_subdirectory(vk)
 
 # api
 source_group("source"  FILES ${SOURCES})

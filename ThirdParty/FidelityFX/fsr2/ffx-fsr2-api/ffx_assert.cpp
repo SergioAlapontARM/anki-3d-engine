@@ -26,6 +26,16 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>  // required for OutputDebugString()
 #include <stdio.h>    // required for sprintf_s
+#else
+// https://github.com/mpaland/printf
+int sprintf_s(char* buffer, size_t sizeOfBuffer, const char* format, ...)
+{
+	va_list va;
+	va_start(va, format);
+	const int ret = vsnprintf(buffer, sizeOfBuffer, format, va);
+	va_end(va);
+	return ret;
+}
 #endif                // #ifndef _WIN32
 
 static FfxAssertCallback s_assertCallback;
@@ -45,7 +55,6 @@ bool ffxAssertReport(const char* file, int32_t line, const char* condition, cons
         return true;
     }
 
-#ifdef _WIN32
     // form the final assertion string and output to the TTY.
     const size_t bufferSize = snprintf(NULL, 0, "%s(%d): ASSERTION FAILED. %s\n", file, line, message ? message : condition) + 1;
     char*        tempBuf    = (char*)malloc(bufferSize);
@@ -61,19 +70,15 @@ bool ffxAssertReport(const char* file, int32_t line, const char* condition, cons
     }
 
     if (!s_assertCallback) {
+#ifdef _WIN32
         OutputDebugStringA(tempBuf);
+#endif
     } else {
         s_assertCallback(tempBuf);
     }
 
     // free the buffer.
     free(tempBuf);
-
-#else
-    FFX_UNUSED(line);
-    FFX_UNUSED(condition);
-    FFX_UNUSED(message);
-#endif
 
     return true;
 }

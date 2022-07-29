@@ -41,7 +41,7 @@ Error Tonemapping::initInternal()
 	// Create exposure texture.
 	// WARNING: Use it only as IMAGE and nothing else. It will not be tracked by the rendergraph. No tracking means no
 	// automatic image transitions
-	const TextureUsageBit usage = TextureUsageBit::ALL_IMAGE;
+	const TextureUsageBit usage = TextureUsageBit::ALL_IMAGE | TextureUsageBit::ALL_SAMPLED;
 	const TextureInitInfo texinit =
 		m_r->create2DRenderTargetInitInfo(1, 1, Format::R16G16_SFLOAT, usage, "ExposureAndAvgLum1x1");
 	ClearValue clearValue;

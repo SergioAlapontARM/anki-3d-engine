@@ -23,13 +23,25 @@
 
 #include <stdint.h>
 
-#if defined (FFX_GCC)
-/// FidelityFX exported functions
+// Anki Workarounds.
 #define FFX_API
-#else
-/// FidelityFX exported functions
-#define FFX_API __declspec(dllexport)
-#endif // #if defined (FFX_GCC)
+
+#ifndef _WIN32
+#	define _countof(array) (sizeof(array) / sizeof((array)[0]))
+#	include <stdio.h>
+#	include <stddef.h>
+
+template<size_t N>
+static inline void strcpy_s(char (&buf)[N], const char* str)
+{
+	snprintf(buf, N, "%s", str);
+}
+#endif
+
+#ifndef _MSC_VER
+#	define FFX_STATIC static inline
+#endif
+////
 
 /// Maximum supported number of simultaneously bound SRVs.
 #define FFX_MAX_NUM_SRVS            16

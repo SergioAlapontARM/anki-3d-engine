@@ -35,6 +35,12 @@ set(common_headers
 	Utils/InstantiationMacros.h)
 
 if(VULKAN)
+
+	# Find FSR 2.0 relevant files
+    # "${CMAKE_CURRENT_SOURCE_DIR}/../ffx_assert.cpp"
+	file(GLOB_RECURSE _ANKI_FSR2_VK_SRCS "Vulkan/fsr2_vk/*.cpp" )
+	file(GLOB_RECURSE _ANKI_FSR2_VK_HEADERS "Vulkan/fsr2_vk/*.h")
+
 	set(backend_sources
 		Vulkan/AccelerationStructure.cpp
 		Vulkan/AccelerationStructureImpl.cpp
@@ -76,7 +82,7 @@ if(VULKAN)
 		Vulkan/FrameGarbageCollector.cpp
 		Vulkan/GrUpscaler.cpp
 		Vulkan/GrUpscalerImpl.cpp
-		${ANKI_FSR2_VK_SRCS})
+		${_ANKI_FSR2_VK_SRCS})
 	set(backend_headers
 		Vulkan/AccelerationStructureImpl.h
 		Vulkan/BufferImpl.h
@@ -114,10 +120,8 @@ if(VULKAN)
 		Vulkan/TimestampQueryImpl.h
 		Vulkan/VulkanObject.h
 		Vulkan/GrUpscalerImpl.h
-		${ANKI_FSR2_VK_SHADERS})
+		${_ANKI_FSR2_VK_HEADERS})
 
-		source_group("fsr2_sources"  FILES ${ANKI_FSR2_VK_SRCS} )
-		source_group("fsr2_shaders" FILES ${ANKI_FSR2_VK_SHADERS})
 
 	if(ANKI_HEADLESS)
 		set(backend_sources ${backend_sources} "Vulkan/GrManagerImplHeadless.cpp")

@@ -84,7 +84,9 @@ FFX_API void ffxAssertSetPrintingCallback(FfxAssertCallback callback);
     do                                                                             \
     {                                                                              \
         if (!(condition) && ffxAssertReport(__FILE__, __LINE__, #condition, NULL)) \
+		{																		   \
             FFX_DEBUG_BREAK                                                        \
+		}																		   \
     } while (0)
 
 /// Assert macro with message.

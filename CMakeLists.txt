@@ -322,9 +322,6 @@ else()
 	set(_ANKI_DLSS_ENABLED 0)
 endif()
 
-# FSR 2.0
-add_subdirectory(ThirdParty/FidelityFX/fsr2)
-
 ################################################################################
 # AnKi                                                                         #
 ################################################################################
@@ -410,8 +407,7 @@ include_directories(
 	"${CMAKE_CURRENT_SOURCE_DIR}/ThirdParty/Bullet/src"
 	"ThirdParty"
 	"ThirdParty/ZLib"
-	${CMAKE_CURRENT_SOURCE_DIR}
-	"ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/vk")
+	${CMAKE_CURRENT_SOURCE_DIR})
 
 if(SDL2_INCLUDE_DIRS)
 	include_directories("${SDL2_INCLUDE_DIRS}")
@@ -473,6 +469,9 @@ else()
 		/wd4127
 		/wd4457)
 endif()
+
+# FSR 2.0
+add_subdirectory(ThirdParty/FidelityFX/fsr2)
 
 # Add AnKi sub libraries
 add_subdirectory(AnKi)

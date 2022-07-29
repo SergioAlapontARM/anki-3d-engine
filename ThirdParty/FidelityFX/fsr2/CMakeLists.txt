@@ -19,6 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-cmake_minimum_required(VERSION 3.12.1)
+# cmake_minimum_required(VERSION 3.12.1)
 set(Vulkan_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../")
 add_subdirectory(ffx-fsr2-api)
