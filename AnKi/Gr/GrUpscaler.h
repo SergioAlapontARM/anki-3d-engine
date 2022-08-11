@@ -11,6 +11,8 @@
 
 namespace anki {
 
+class Renderer;
+
 /// @addtogroup graphics
 /// @{
 
@@ -41,6 +43,7 @@ public:
 	UVec2 m_targetTextureResolution = UVec2(0u);
 	GrUpscalerType m_upscalerType = GrUpscalerType::COUNT;
 	GrUpscalerQualityMode m_qualityMode = GrUpscalerQualityMode::PERFORMANCE;
+	Renderer* m_r = nullptr;
 };
 
 class GrUpscaler : public GrObject

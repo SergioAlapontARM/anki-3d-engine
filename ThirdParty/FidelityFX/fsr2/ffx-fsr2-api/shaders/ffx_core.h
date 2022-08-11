@@ -30,23 +30,23 @@
 #if !defined(FFX_CORE_H)
 #define FFX_CORE_H
 
-#include "ffx_common_types.h"
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_common_types.h>
 
 #if defined(FFX_CPU)
-    #include "ffx_core_cpu.h"
+    #include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_core_cpu.h>
 #endif // #if defined(FFX_CPU)
 
 #if defined(FFX_GLSL) && defined(FFX_GPU)
-    #include "ffx_core_glsl.h"
+    #include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_core_glsl.h>
 #endif // #if defined(FFX_GLSL) && defined(FFX_GPU)
 
 #if defined(FFX_HLSL) && defined(FFX_GPU)
-    #include "ffx_core_hlsl.h"
+    #include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_core_hlsl.h>
 #endif // #if defined(FFX_HLSL) && defined(FFX_GPU)
 
 #if defined(FFX_GPU)
-    #include "ffx_core_gpu_common.h"
-    #include "ffx_core_gpu_common_half.h"
-    #include "ffx_core_portability.h"
+    #include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_core_gpu_common.h>
+    #include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_core_gpu_common_half.h>
+    #include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_core_portability.h>
 #endif // #if defined(FFX_GPU)
 #endif // #if !defined(FFX_CORE_H)

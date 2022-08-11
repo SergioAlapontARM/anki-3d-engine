@@ -19,14 +19,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "ffx_fsr2_resources.h"
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_resources.h>
 
 #if defined(FFX_GPU)
 #ifdef __hlsl_dx_compiler
 #pragma dxc diagnostic push
 #pragma dxc diagnostic ignored "-Wambig-lit-shift"
 #endif //__hlsl_dx_compiler
-#include "ffx_core.h"
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_core.h>
 #ifdef __hlsl_dx_compiler
 #pragma dxc diagnostic pop
 #endif //__hlsl_dx_compiler

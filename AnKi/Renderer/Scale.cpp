@@ -115,6 +115,7 @@ Error Scale::init()
 		inf.m_targetTextureResolution = m_r->getPostProcessResolution();
 		inf.m_upscalerType = isDlss ? GrUpscalerType::DLSS_2 : GrUpscalerType::FSR_2;
 		inf.m_qualityMode = GrUpscalerQualityMode(isDlss ? (dlssQuality - 1) : (fsr2Quality - 1));
+		inf.m_r = m_r;
 
 		m_grUpscaler = getGrManager().newGrUpscaler(inf);
 	}

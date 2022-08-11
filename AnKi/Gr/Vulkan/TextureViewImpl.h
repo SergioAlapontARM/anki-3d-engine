@@ -51,6 +51,11 @@ public:
 		return static_cast<const TextureImpl&>(*m_tex);
 	}
 
+	const TexturePtr& getTexture() const
+	{
+		return m_tex;
+	}
+
 	U32 getOrCreateBindlessIndex();
 
 private:

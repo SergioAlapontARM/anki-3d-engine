@@ -61,7 +61,7 @@ void WriteUpscaledOutput(FFX_MIN16_U2 iPxHrPos, FfxFloat32x3 fUpscaledColor)
     void FsrRcasInputF(inout FfxFloat32 r, inout FfxFloat32 g, inout FfxFloat32 b) {}
 #endif // #if FFX_HALF
 
-#include "ffx_fsr1.h"
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr1.h>
 
 
 void CurrFilter(FFX_MIN16_U2 pos)

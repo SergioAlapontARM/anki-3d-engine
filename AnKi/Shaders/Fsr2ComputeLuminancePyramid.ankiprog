@@ -1,0 +1,10 @@
+// Copyright (C) 2009-2022, Panagiotis Christopoulos Charitos and contributors.
+// All rights reserved.
+// Code licensed under the BSD License.
+// http://www.anki3d.org/LICENSE
+
+#include <AnKi/Shaders/Fsr2Common.h>
+
+#pragma anki start comp
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_compute_luminance_pyramid_pass.glsl>
+#pragma anki end

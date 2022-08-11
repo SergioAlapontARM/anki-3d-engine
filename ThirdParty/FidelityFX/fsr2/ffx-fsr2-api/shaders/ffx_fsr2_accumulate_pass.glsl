@@ -38,7 +38,7 @@
 // CB   0 : cbFSR2
 // CB   1 : FSR2DispatchOffsets
 
-#version 450
+// #version 450
 
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
@@ -61,13 +61,13 @@
 
 #define FSR2_BIND_CB_FSR2                                   15
 
-#include "ffx_fsr2_callbacks_glsl.h"
-#include "ffx_fsr2_common.h"
-#include "ffx_fsr2_sample.h"
-#include "ffx_fsr2_upsample.h"
-#include "ffx_fsr2_postprocess_lock_status.h"
-#include "ffx_fsr2_reproject.h"
-#include "ffx_fsr2_accumulate.h"
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_callbacks_glsl.h>
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_common.h>
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_sample.h>
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_upsample.h>
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_postprocess_lock_status.h>
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_reproject.h>
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_accumulate.h>
 
 #ifndef FFX_FSR2_THREAD_GROUP_WIDTH
 #define FFX_FSR2_THREAD_GROUP_WIDTH 8

@@ -20,7 +20,7 @@
 
 // FSR 2.0 related
 #include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/ffx_fsr2.h>
-#include <FidelityFX/fsr2/ffx-fsr2-api/vk/ffx_fsr2_vk.h>
+#include <Anki/Gr/Vulkan/fsr2_vk/vk/AnkiFsr2.h>
 
 
 #include <algorithm>
@@ -875,7 +875,7 @@ void upscaleDLSS(const VkCommandBuffer cmdbuff, const anki::GrUpscalerPtr& upsca
 }
 #endif // end ANKI_DLSS
 
-void upscaleFsr2(const VkCommandBuffer cmdbuff, const anki::GrUpscalerPtr& upscaler,
+void upscaleFsr2(const CommandBufferPtr& cmdbuff, const anki::GrUpscalerPtr& upscaler,
 				 const anki::TextureViewPtr& inColor, const anki::TextureViewPtr& outUpscaledColor,
 				 const anki::TextureViewPtr& motionVectors, const anki::TextureViewPtr& depth,
 				 const anki::TextureViewPtr& exposure, const anki::Vec2& jitterOffset,
@@ -899,24 +899,19 @@ void upscaleFsr2(const VkCommandBuffer cmdbuff, const anki::GrUpscalerPtr& upsca
 	FfxFsr2Context& fsrCtx = upscalerImpl.getFsr2Ctx();
 
 	FfxFsr2DispatchDescription params{};
-	params.commandList = ffxGetCommandListVK(cmdbuff);
-	params.color = ffxGetTextureResourceVK(&fsrCtx, srcViewImpl.getTextureImpl().m_imageHandle, srcViewImpl.getHandle(),
-										   renderingSize.x(), renderingSize.y(),
-										   srcViewImpl.getTextureImpl().m_vkFormat, L"FSR2_InputColor");
-	params.depth = ffxGetTextureResourceVK(&fsrCtx, depthViewImpl.getTextureImpl().m_imageHandle,
-										   depthViewImpl.getHandle(), renderingSize.x(), renderingSize.y(),
-										   depthViewImpl.getTextureImpl().m_vkFormat, L"FSR2_InputDepth");
-	params.motionVectors = ffxGetTextureResourceVK(&fsrCtx, mvViewImpl.getTextureImpl().m_imageHandle,
-												   mvViewImpl.getHandle(), renderingSize.x(), renderingSize.y(),
-												   mvViewImpl.getTextureImpl().m_vkFormat, L"FSR2_InputMotionVectors");
-	params.exposure =
-		ffxGetTextureResourceVK(&fsrCtx, exposureViewImpl.getTextureImpl().m_imageHandle, exposureViewImpl.getHandle(),
-								1, 1, exposureViewImpl.getTextureImpl().m_vkFormat, L"FSR2_InputExposure");
-	params.output =
-		ffxGetTextureResourceVK(&fsrCtx, dstViewImpl.getTextureImpl().m_imageHandle, dstViewImpl.getHandle(),
-								upscaledSize.x(), upscaledSize.y(), dstViewImpl.getTextureImpl().m_vkFormat,
-								L"FSR2_OutputUpscaledColor",
-		FFX_RESOURCE_STATE_UNORDERED_ACCESS);
+
+	params.commandList = ffxGetCommandList(cmdbuff);
+
+	params.color = ffxGetTextureResource(srcViewImpl.getTexture(), inColor,
+		renderingSize.x(), renderingSize.y(), L"FSR2_InputColor");
+	params.depth = ffxGetTextureResource(depthViewImpl.getTexture(), depth,
+		renderingSize.x(), renderingSize.y(), L"FSR2_InputDepth");
+	params.motionVectors = ffxGetTextureResource(mvViewImpl.getTexture(),motionVectors,
+		renderingSize.x(), renderingSize.y(), L"FSR2_InputMotionVectors");
+	params.exposure = ffxGetTextureResource(exposureViewImpl.getTexture(), exposure, 1, 1, L"FSR2_InputExposure",
+											FFX_RESOURCE_STATE_UNORDERED_ACCESS);
+	params.output =	ffxGetTextureResource(dstViewImpl.getTexture(), outUpscaledColor,
+		upscaledSize.x(), upscaledSize.y(), L"FSR2_OutputUpscaledColor", FFX_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	// Do not use reactive or transparencyAndComposite masks, sub-optimal path (quality/performance tradeoff)
 	params.reactive.resource = nullptr;
@@ -939,6 +934,12 @@ void upscaleFsr2(const VkCommandBuffer cmdbuff, const anki::GrUpscalerPtr& upsca
 
 	FfxErrorCode errorCode = ffxFsr2ContextDispatch(&fsrCtx, &params);
 	FFX_ASSERT(errorCode == FFX_OK);
+
+	// Move ExposureAndAvgLum1x1 back to the original layout
+	const TextureSurfaceInfo surf(0, 0, 0, 0);
+	cmdbuff->setTextureSurfaceBarrier(exposureViewImpl.getTexture(), TextureUsageBit::SAMPLED_COMPUTE,
+									  TextureUsageBit::IMAGE_COMPUTE_READ,
+								   surf);
 }
 
 void CommandBufferImpl::upscaleInternal(const GrUpscalerPtr& upscaler, const TextureViewPtr& inColor,
@@ -978,7 +979,8 @@ void CommandBufferImpl::upscaleInternal(const GrUpscalerPtr& upscaler, const Tex
 	if(upscaler->getUpscalerType() == GrUpscalerType::FSR_2)
 	{
 		getGrManagerImpl().beginMarker(m_handle, "FSR2");
-		upscaleFsr2(m_handle, upscaler, inColor, outUpscaledColor, motionVectors, depth, exposure, jitterOffset,
+		upscaleFsr2(CommandBufferPtr(this), upscaler, inColor, outUpscaledColor, motionVectors, depth, exposure,
+					jitterOffset,
 					resetAccumulation, motionVectorsScale, cameraNear, cameraFar, cameraFovV);
 		getGrManagerImpl().endMarker(m_handle);
 	}

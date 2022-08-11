@@ -19,10 +19,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "ffx_fsr2_resources.h"
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_resources.h>
 
 #if defined(FFX_GPU)
-#include "ffx_core.h"
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_core.h>
 #endif // #if defined(FFX_GPU)
 
 #if defined(FFX_GPU)

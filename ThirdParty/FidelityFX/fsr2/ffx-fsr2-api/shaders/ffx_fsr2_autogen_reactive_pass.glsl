@@ -19,7 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#version 450
+// #version 450
 
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
@@ -30,8 +30,8 @@
 #define FSR2_BIND_CB_REACTIVE                               3
 #define FSR2_BIND_CB_FSR2									4
 
-#include "ffx_fsr2_callbacks_glsl.h"
-#include "ffx_fsr2_common.h"
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_callbacks_glsl.h>
+#include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/shaders/ffx_fsr2_common.h>
 
 layout (set = 1, binding = FSR2_BIND_SRV_PRE_ALPHA_COLOR) 	uniform texture2D   r_input_color_pre_alpha;
 layout (set = 1, binding = FSR2_BIND_SRV_POST_ALPHA_COLOR) 	uniform texture2D   r_input_color_post_alpha;

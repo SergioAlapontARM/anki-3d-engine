@@ -19,7 +19,7 @@
 
 // FSR related
 #include <ThirdParty/FidelityFX/fsr2/ffx-fsr2-api/ffx_fsr2.h>
-#include <FidelityFX/fsr2/ffx-fsr2-api/vk/ffx_fsr2_vk.h>
+#include <Anki/Gr/Vulkan/fsr2_vk/vk/AnkiFsr2.h>
 
 namespace anki {
 
@@ -192,19 +192,22 @@ void GrUpscalerImpl::destroyDlss()
 }
 #endif // ANKI_DLSS
 
+
+static void fsr2ErrorCallback(const char* msg)
+{
+	ANKI_VK_LOGE("ANKI (FSR2 error): %s", msg);
+}
+
 Error GrUpscalerImpl::initFsr2(const GrUpscalerInitInfo& initInfo)
 {
-	const VkPhysicalDevice physicaldevice = getGrManagerImpl().getPhysicalDevice();
-	m_fsr2MemorySize = ffxFsr2GetScratchMemorySizeVK(physicaldevice);
+	m_fsr2MemorySize = ffxFsr2GetScratchMemorySize();
 	m_fsr2Memory = getAllocator().allocate(m_fsr2MemorySize);
 	FfxFsr2ContextDescription fsr2Init{};
-	ANKI_ASSERT(!m_fsr2Memory);
-	FfxErrorCode errorCode = ffxFsr2GetInterfaceVK(&fsr2Init.callbacks, m_fsr2Memory, m_fsr2MemorySize,
-												   physicaldevice, vkGetDeviceProcAddr);
+	ANKI_ASSERT(m_fsr2Memory);
+	FfxErrorCode errorCode = ffxFsr2GetInterface(&fsr2Init.callbacks, m_fsr2Memory, m_fsr2MemorySize, initInfo.m_r);
 	FFX_ASSERT(errorCode == FFX_OK);
 
-	const VkDevice device = getGrManagerImpl().getDevice();
-	fsr2Init.device = ffxGetDeviceVK(device);
+	fsr2Init.device = ffxGetDevice(&getManager());
 	fsr2Init.maxRenderSize.width = initInfo.m_sourceTextureResolution.x();
 	fsr2Init.maxRenderSize.height = initInfo.m_sourceTextureResolution.y();
 	fsr2Init.displaySize.width = initInfo.m_targetTextureResolution.x();
@@ -212,6 +215,7 @@ Error GrUpscalerImpl::initFsr2(const GrUpscalerInitInfo& initInfo)
 	fsr2Init.flags = FFX_FSR2_ENABLE_HIGH_DYNAMIC_RANGE;
 
 	ANKI_ASSERT(!m_fsr2Ctx);
+	ffxAssertSetPrintingCallback(fsr2ErrorCallback);
 	m_fsr2Ctx = getAllocator().newInstance<FfxFsr2Context>();
 	errorCode = ffxFsr2ContextCreate(m_fsr2Ctx, &fsr2Init);
 	FFX_ASSERT(errorCode == FFX_OK);
