@@ -202,7 +202,7 @@ static TextureUsageBit ffxGetTextureUsageFromResourceState(FfxResourceStates sta
 	{
 
 	case(FFX_RESOURCE_STATE_GENERIC_READ):
-		return TextureUsageBit::ALL_SAMPLED | TextureUsageBit::ALL_IMAGE;
+		return TextureUsageBit::SAMPLED_COMPUTE | TextureUsageBit::IMAGE_COMPUTE_READ;
 	case(FFX_RESOURCE_STATE_UNORDERED_ACCESS):
 		return TextureUsageBit::IMAGE_COMPUTE_READ | TextureUsageBit::IMAGE_COMPUTE_WRITE;
 	case(FFX_RESOURCE_STATE_COMPUTE_READ):
@@ -663,8 +663,7 @@ Error ankiFsr2CreateTextureResource(const FfxCreateResourceDescription& createRe
 									   surf);
 		cmdb->copyBufferToTextureView(handle.getBuffer(), handle.getOffset(), handle.getRange(),
 									  res.m_singleMipImageViews[0]);
-		const TextureUsageBit initialUsage = (createResourceDescription.initalState == FFX_RESOURCE_STATE_COMPUTE_READ)
-			? TextureUsageBit::ALL_SAMPLED : TextureUsageBit::ALL_IMAGE;
+		const TextureUsageBit initialUsage = ffxGetTextureUsageFromResourceState(createResourceDescription.initalState);
 		cmdb->setTextureSurfaceBarrier(res.m_imageResource, TextureUsageBit::TRANSFER_DESTINATION, initialUsage, surf);
 		FencePtr fence;
 		cmdb->flush({}, &fence);
