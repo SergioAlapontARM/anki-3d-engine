@@ -3,6 +3,7 @@
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
 
+#define ANKI_DISABLE_FFX_HALF 1
 #include <AnKi/Shaders/Fsr2Common.h>
 
 #pragma anki start comp

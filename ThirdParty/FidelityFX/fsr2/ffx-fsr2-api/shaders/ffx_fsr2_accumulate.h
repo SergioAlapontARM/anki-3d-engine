@@ -240,7 +240,7 @@ void Accumulate(FFX_MIN16_I2 iPxHrPos)
     FfxFloat32 fReactiveWeighted = 0;
 
     // No trust in reactive areas
-    fLockStatus[LOCK_TRUST] = ffxMin(fLockStatus[LOCK_TRUST], LOCK_STATUS_F1(1.0f) - LOCK_STATUS_F1(pow(fReactiveMax, 1.0f / 3.0f)));
+    fLockStatus[LOCK_TRUST] = ffxMin(fLockStatus[LOCK_TRUST], LOCK_STATUS_F1(1.0f) - LOCK_STATUS_F1(pow(fReactiveMax, UPSAMPLE_F(1.0f / 3.0f))));
     fLockStatus[LOCK_TRUST] = ffxMin(fLockStatus[LOCK_TRUST], LOCK_STATUS_F1(fDepthClipFactor));
 
     UPSAMPLE_F2 fKernelWeight = ComputeKernelWeight(UPSAMPLE_F(fHistoryColorAndWeight.w), UPSAMPLE_F(fDepthClipFactor), ffxMax((UPSAMPLE_F(1) - fLockStatus[LOCK_TRUST]), fReactiveMax));

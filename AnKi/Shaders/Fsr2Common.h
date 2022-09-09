@@ -1,6 +1,16 @@
+
+#ifndef ANKI_DISABLE_FFX_HALF
+#define ANKI_DISABLE_FFX_HALF 0
+#endif
+
+#if ANKI_DISABLE_FFX_HALF
+#define FFX_HALF 0
+#else
+#define FFX_HALF 1
+#endif
+
 #define FFX_GPU 1
 #define FFX_GLSL 1
-#define FFX_HALF 0
 
 #define FFX_FSR2_OPTION_HDR_COLOR_INPUT 1
 #define FFX_FSR2_OPTION_LOW_RESOLUTION_MOTION_VECTORS 1
