@@ -7,7 +7,6 @@
 
 #include <AnKi/ShaderCompiler/Common.h>
 #include <AnKi/Util/String.h>
-#include <AnKi/Gr/Enums.h>
 
 namespace anki {
 
@@ -15,11 +14,11 @@ namespace anki {
 /// @{
 
 /// Run glslang's preprocessor.
-Error preprocessGlsl(CString in, StringAuto& out);
+Error preprocessGlsl(CString in, StringRaii& out);
 
 /// Compile glsl to SPIR-V.
-Error compilerGlslToSpirv(CString src, ShaderType shaderType, GenericMemoryPoolAllocator<U8> tmpAlloc,
-						  DynamicArrayAuto<U8>& spirv, StringAuto& errorMessage);
+Error compilerGlslToSpirv(CString src, ShaderType shaderType, BaseMemoryPool& tmpPool, DynamicArrayRaii<U8>& spirv,
+						  StringRaii& errorMessage);
 /// @}
 
 } // end namespace anki

@@ -31,12 +31,12 @@ public:
 
 	RenderTargetHandle getRt() const
 	{
-		return m_runCtx.m_rts[WRITE];
+		return m_runCtx.m_rts[kWrite];
 	}
 
 private:
-	static constexpr U32 READ = 0;
-	static constexpr U32 WRITE = 1;
+	static constexpr U32 kRead = 0;
+	static constexpr U32 kWrite = 1;
 
 	ShaderProgramResourcePtr m_prog;
 	ShaderProgramPtr m_grProg;
@@ -58,7 +58,7 @@ private:
 
 	void run(const RenderingContext& ctx, RenderPassWorkContext& rgraphCtx);
 
-	void getDebugRenderTarget(CString rtName, RenderTargetHandle& handle,
+	void getDebugRenderTarget(CString rtName, Array<RenderTargetHandle, kMaxDebugRenderTargets>& handles,
 							  ShaderProgramPtr& optionalShaderProgram) const override;
 };
 /// @}

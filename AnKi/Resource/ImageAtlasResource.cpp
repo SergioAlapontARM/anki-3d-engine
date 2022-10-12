@@ -16,13 +16,13 @@ ImageAtlasResource::ImageAtlasResource(ResourceManager* manager)
 
 ImageAtlasResource::~ImageAtlasResource()
 {
-	m_subTexes.destroy(getAllocator());
-	m_subTexNames.destroy(getAllocator());
+	m_subTexes.destroy(getMemoryPool());
+	m_subTexNames.destroy(getMemoryPool());
 }
 
 Error ImageAtlasResource::load(const ResourceFilename& filename, Bool async)
 {
-	XmlDocument doc;
+	XmlDocument doc(&getTempMemoryPool());
 	ANKI_CHECK(openFileParseXml(filename, doc));
 
 	XmlElement rootel, el;
@@ -52,7 +52,7 @@ Error ImageAtlasResource::load(const ResourceFilename& filename, Bool async)
 	if(margin >= I(m_image->getWidth()) || margin >= I(m_image->getHeight()) || margin < 0)
 	{
 		ANKI_RESOURCE_LOGE("Too big margin %d", I32(margin));
-		return Error::USER_DATA;
+		return Error::kUserData;
 	}
 	m_margin = U32(margin);
 
@@ -75,7 +75,7 @@ Error ImageAtlasResource::load(const ResourceFilename& filename, Bool async)
 		if(name.getLength() < 1)
 		{
 			ANKI_RESOURCE_LOGE("Something wrong with the <name> tag. Probably empty");
-			return Error::USER_DATA;
+			return Error::kUserData;
 		}
 
 		namesSize += U32(name.getLength()) + 1;
@@ -85,8 +85,8 @@ Error ImageAtlasResource::load(const ResourceFilename& filename, Bool async)
 	} while(subTexEl);
 
 	// Allocate
-	m_subTexNames.create(getAllocator(), namesSize);
-	m_subTexes.create(getAllocator(), subTexesCount);
+	m_subTexNames.create(getMemoryPool(), namesSize);
+	m_subTexes.create(getMemoryPool(), subTexesCount);
 
 	// Iterate again and populate
 	subTexesCount = 0;
@@ -113,7 +113,7 @@ Error ImageAtlasResource::load(const ResourceFilename& filename, Bool async)
 		ANKI_CHECK(subTexEl.getNextSiblingElement("subImage", subTexEl));
 	} while(subTexEl);
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error ImageAtlasResource::getSubImageInfo(CString name, F32 uv[4]) const
@@ -126,12 +126,12 @@ Error ImageAtlasResource::getSubImageInfo(CString name, F32 uv[4]) const
 			uv[1] = st.m_uv[1];
 			uv[2] = st.m_uv[2];
 			uv[3] = st.m_uv[3];
-			return Error::NONE;
+			return Error::kNone;
 		}
 	}
 
 	ANKI_RESOURCE_LOGE("Image atlas %s doesn't have sub image named: %s", &getFilename()[0], &name[0]);
-	return Error::USER_DATA;
+	return Error::kUserData;
 }
 
 } // end namespace anki

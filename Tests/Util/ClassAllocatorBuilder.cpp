@@ -58,7 +58,7 @@ public:
 
 		if(m_crntSize + size > MAX_SIZE)
 		{
-			return Error::OUT_OF_MEMORY;
+			return Error::kOutOfMemory;
 		}
 
 		PtrSize alignment = 256;
@@ -69,7 +69,7 @@ public:
 
 		m_crntSize += size;
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	void freeChunk(Chunk* chunk)
@@ -107,9 +107,9 @@ static inline U32 floorPow2(U32 v)
 
 ANKI_TEST(Util, ClassAllocatorBuilder)
 {
-	HeapAllocator<U8> alloc(allocAligned, nullptr);
+	HeapMemoryPool pool(allocAligned, nullptr);
 	ClassAllocatorBuilder<Chunk, Interface, Mutex> calloc;
-	calloc.init(alloc);
+	calloc.init(&pool);
 
 	std::mt19937 gen(0);
 
@@ -196,7 +196,7 @@ ANKI_TEST(Util, ClassAllocatorBuilder)
 			Chunk* chunk;
 			PtrSize offset;
 			const U alignment = getRandAlignment();
-			while(calloc.allocate(baseFreeSize, alignment, chunk, offset) == Error::NONE)
+			while(calloc.allocate(baseFreeSize, alignment, chunk, offset) == Error::kNone)
 			{
 				ANKI_TEST_EXPECT_EQ(isAligned(alignment, offset), true);
 				score += (pow(POWER, (log2(F32(baseFreeSize / BASE_SIZE)) + BIAS)) + OFFSET) * F32(baseFreeSize);

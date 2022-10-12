@@ -13,10 +13,6 @@
 
 namespace anki {
 
-const FrustumComponentVisibilityTestFlag FRUSTUM_TEST_FLAGS =
-	FrustumComponentVisibilityTestFlag::RENDER_COMPONENTS | FrustumComponentVisibilityTestFlag::LIGHT_COMPONENTS
-	| FrustumComponentVisibilityTestFlag::DIRECTIONAL_LIGHT_SHADOWS_1_CASCADE;
-
 /// Feedback component
 class ReflectionProbeNode::MoveFeedbackComponent : public SceneComponent
 {
@@ -40,7 +36,7 @@ public:
 			dnode.onMoveUpdate(move);
 		}
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 };
 
@@ -68,7 +64,7 @@ public:
 			dnode.onShapeUpdate(reflc);
 		}
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 };
 
@@ -88,17 +84,17 @@ ReflectionProbeNode::ReflectionProbeNode(SceneGraph* scene, CString name)
 
 	Mat3 rot;
 
-	rot = Mat3(Euler(0.0f, -PI / 2.0f, 0.0f)) * Mat3(Euler(0.0f, 0.0f, PI));
+	rot = Mat3(Euler(0.0f, -kPi / 2.0f, 0.0f)) * Mat3(Euler(0.0f, 0.0f, kPi));
 	m_frustumTransforms[0].setRotation(Mat3x4(Vec3(0.0f), rot));
-	rot = Mat3(Euler(0.0f, PI / 2.0f, 0.0f)) * Mat3(Euler(0.0f, 0.0f, PI));
+	rot = Mat3(Euler(0.0f, kPi / 2.0f, 0.0f)) * Mat3(Euler(0.0f, 0.0f, kPi));
 	m_frustumTransforms[1].setRotation(Mat3x4(Vec3(0.0f), rot));
-	rot = Mat3(Euler(PI / 2.0f, 0.0f, 0.0f));
+	rot = Mat3(Euler(kPi / 2.0f, 0.0f, 0.0f));
 	m_frustumTransforms[2].setRotation(Mat3x4(Vec3(0.0f), rot));
-	rot = Mat3(Euler(-PI / 2.0f, 0.0f, 0.0f));
+	rot = Mat3(Euler(-kPi / 2.0f, 0.0f, 0.0f));
 	m_frustumTransforms[3].setRotation(Mat3x4(Vec3(0.0f), rot));
-	rot = Mat3(Euler(0.0f, PI, 0.0f)) * Mat3(Euler(0.0f, 0.0f, PI));
+	rot = Mat3(Euler(0.0f, kPi, 0.0f)) * Mat3(Euler(0.0f, 0.0f, kPi));
 	m_frustumTransforms[4].setRotation(Mat3x4(Vec3(0.0f), rot));
-	rot = Mat3(Euler(0.0f, 0.0f, PI));
+	rot = Mat3(Euler(0.0f, 0.0f, kPi));
 	m_frustumTransforms[5].setRotation(Mat3x4(Vec3(0.0f), rot));
 
 	for(U i = 0; i < 6; ++i)
@@ -107,11 +103,12 @@ ReflectionProbeNode::ReflectionProbeNode(SceneGraph* scene, CString name)
 		m_frustumTransforms[i].setScale(1.0f);
 
 		FrustumComponent* frc = newComponent<FrustumComponent>();
-		frc->setFrustumType(FrustumType::PERSPECTIVE);
-		frc->setPerspective(CLUSTER_OBJECT_FRUSTUM_NEAR_PLANE, 10.0f, ang, ang);
+		frc->setFrustumType(FrustumType::kPerspective);
+		frc->setPerspective(kClusterObjectFrustumNearPlane, 10.0f, ang, ang);
 		frc->setWorldTransform(m_frustumTransforms[i]);
-		frc->setEnabledVisibilityTests(FrustumComponentVisibilityTestFlag::NONE);
+		frc->setEnabledVisibilityTests(FrustumComponentVisibilityTestFlag::kNone);
 		frc->setEffectiveShadowDistance(getConfig().getSceneReflectionProbeShadowEffectiveDistance());
+		frc->setShadowCascadeCount(1);
 	}
 
 	// Reflection probe comp
@@ -174,14 +171,17 @@ Error ReflectionProbeNode::frameUpdate([[maybe_unused]] Second prevUpdateTime, [
 	// Check the reflection probe component and if it's marked for rendering enable the frustum components
 	const ReflectionProbeComponent& reflc = getFirstComponentOfType<ReflectionProbeComponent>();
 
+	constexpr FrustumComponentVisibilityTestFlag frustumTestFlags =
+		FrustumComponentVisibilityTestFlag::kRenderComponents | FrustumComponentVisibilityTestFlag::kLights;
+
 	const FrustumComponentVisibilityTestFlag testFlags =
-		reflc.getMarkedForRendering() ? FRUSTUM_TEST_FLAGS : FrustumComponentVisibilityTestFlag::NONE;
+		reflc.getMarkedForRendering() ? frustumTestFlags : FrustumComponentVisibilityTestFlag::kNone;
 
 	iterateComponentsOfType<FrustumComponent>([testFlags](FrustumComponent& frc) {
 		frc.setEnabledVisibilityTests(testFlags);
 	});
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

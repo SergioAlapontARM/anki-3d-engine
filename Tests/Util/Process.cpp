@@ -15,7 +15,7 @@ static void createBashScript(CString code)
 {
 	File file;
 
-	ANKI_TEST_EXPECT_NO_ERR(file.open("process_test.sh", FileOpenFlag::WRITE));
+	ANKI_TEST_EXPECT_NO_ERR(file.open("process_test.sh", FileOpenFlag::kWrite));
 	ANKI_TEST_EXPECT_NO_ERR(file.writeTextf("#!/bin/bash\n%s\n", code.cstr()));
 }
 
@@ -37,16 +37,17 @@ exit 6
 		I32 exitCode;
 		ANKI_TEST_EXPECT_NO_ERR(proc.wait(-1.0, &status, &exitCode));
 
-		ANKI_TEST_EXPECT_EQ(status, ProcessStatus::NOT_RUNNING);
+		ANKI_TEST_EXPECT_EQ(status, ProcessStatus::kNotRunning);
 		ANKI_TEST_EXPECT_EQ(exitCode, 6);
 
 		// Get stuff again, don't wait this time
 		exitCode = 0;
 		ANKI_TEST_EXPECT_NO_ERR(proc.wait(0.0, &status, &exitCode));
-		ANKI_TEST_EXPECT_EQ(status, ProcessStatus::NOT_RUNNING);
+		ANKI_TEST_EXPECT_EQ(status, ProcessStatus::kNotRunning);
 		ANKI_TEST_EXPECT_EQ(exitCode, 6);
 
-		StringAuto stdOut(HeapAllocator<U8>(allocAligned, nullptr));
+		HeapMemoryPool pool(allocAligned, nullptr);
+		StringRaii stdOut(&pool);
 		ANKI_TEST_EXPECT_NO_ERR(proc.readFromStdout(stdOut));
 		ANKI_TEST_EXPECT_EQ(stdOut, "Hello from script\n");
 	}
@@ -70,25 +71,25 @@ done
 		ProcessStatus status;
 
 		ANKI_TEST_EXPECT_NO_ERR(proc.getStatus(status));
-		ANKI_TEST_EXPECT_EQ(status, ProcessStatus::RUNNING);
+		ANKI_TEST_EXPECT_EQ(status, ProcessStatus::kRunning);
 
 		while(true)
 		{
 			ANKI_TEST_EXPECT_NO_ERR(proc.getStatus(status));
-			if(status == ProcessStatus::NOT_RUNNING)
+			if(status == ProcessStatus::kNotRunning)
 			{
 				break;
 			}
 
-			HeapAllocator<U8> alloc(allocAligned, nullptr);
-			StringAuto stdOut(alloc);
+			HeapMemoryPool pool(allocAligned, nullptr);
+			StringRaii stdOut(&pool);
 			ANKI_TEST_EXPECT_NO_ERR(proc.readFromStdout(stdOut));
 			if(stdOut.getLength())
 			{
 				ANKI_TEST_LOGI("%s", stdOut.cstr());
 			}
 
-			StringAuto stderrStr(alloc);
+			StringRaii stderrStr(&pool);
 			ANKI_TEST_EXPECT_NO_ERR(proc.readFromStderr(stderrStr));
 			if(stderrStr.getLength())
 			{
@@ -115,7 +116,8 @@ sleep 1
 
 		HighRezTimer::sleep(0.5_sec); // Wait a bit more for good measure
 
-		StringAuto stdOut(HeapAllocator<U8>(allocAligned, nullptr));
+		HeapMemoryPool pool(allocAligned, nullptr);
+		StringRaii stdOut(&pool);
 		ANKI_TEST_EXPECT_NO_ERR(proc.readFromStdout(stdOut));
 		ANKI_TEST_EXPECT_EQ(stdOut, "Lala\n");
 	}

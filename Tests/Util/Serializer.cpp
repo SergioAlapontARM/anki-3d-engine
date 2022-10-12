@@ -30,25 +30,25 @@ ANKI_TEST(Util, BinarySerializer)
 	a.m_u64 = 0x123456789ABCDEFF;
 	a.m_darray = b;
 
-	HeapAllocator<U8> alloc(allocAligned, nullptr);
+	HeapMemoryPool pool(allocAligned, nullptr);
 
 	// Serialize
 	{
 		File file;
-		ANKI_TEST_EXPECT_NO_ERR(file.open("serialized.bin", FileOpenFlag::WRITE | FileOpenFlag::BINARY));
+		ANKI_TEST_EXPECT_NO_ERR(file.open("serialized.bin", FileOpenFlag::kWrite | FileOpenFlag::kBinary));
 		BinarySerializer serializer;
 
-		ANKI_TEST_EXPECT_NO_ERR(serializer.serialize(a, alloc, file));
+		ANKI_TEST_EXPECT_NO_ERR(serializer.serialize(a, pool, file));
 	}
 
 	// Deserialize
 	{
 		File file;
-		ANKI_TEST_EXPECT_NO_ERR(file.open("serialized.bin", FileOpenFlag::READ | FileOpenFlag::BINARY));
+		ANKI_TEST_EXPECT_NO_ERR(file.open("serialized.bin", FileOpenFlag::kRead | FileOpenFlag::kBinary));
 
 		BinaryDeserializer deserializer;
 		ClassA* pa;
-		ANKI_TEST_EXPECT_NO_ERR(deserializer.deserialize(pa, alloc, file));
+		ANKI_TEST_EXPECT_NO_ERR(deserializer.deserialize(pa, pool, file));
 
 		ANKI_TEST_EXPECT_EQ(pa->m_array[0], a.m_array[0]);
 		ANKI_TEST_EXPECT_EQ(pa->m_u32, a.m_u32);
@@ -64,6 +64,6 @@ ANKI_TEST(Util, BinarySerializer)
 			}
 		}
 
-		alloc.deleteInstance(pa);
+		deleteInstance(pool, pa);
 	}
 }

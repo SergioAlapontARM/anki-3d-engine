@@ -9,7 +9,6 @@
 #include <AnKi/Util/StdTypes.h>
 #include <AnKi/Util/Array.h>
 #include <AnKi/Util/String.h>
-#include <AnKi/Util/Allocator.h>
 
 namespace anki {
 
@@ -26,7 +25,7 @@ public:
 	U32 m_depthBits = 0;
 	U32 m_stencilBits = 0;
 	U32 m_samplesCount = 0;
-	static const Bool m_doubleBuffer = true;
+	static constexpr Bool m_doubleBuffer = true;
 	/// Create a fullscreen window with the desktop's resolution
 	Bool m_fullscreenDesktopRez = false;
 	Bool m_exclusiveFullscreen = false;
@@ -63,7 +62,7 @@ protected:
 	U32 m_width = 0;
 	U32 m_height = 0;
 
-	HeapAllocator<U8> m_alloc;
+	HeapMemoryPool m_pool;
 
 	NativeWindow()
 	{

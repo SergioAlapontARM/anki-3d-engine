@@ -29,9 +29,9 @@ public:
 /// Some options that can be used as hints in debug drawcalls.
 enum class RenderQueueDebugDrawFlag : U32
 {
-	DEPTH_TEST_ON,
-	DITHERED_DEPTH_TEST_ON,
-	COUNT
+	kDepthTestOn,
+	kDitheredDepthTestOn,
+	kCount
 };
 
 /// Context that contains variables for drawing and will be passed to RenderQueueDrawCallback.
@@ -42,9 +42,9 @@ public:
 	CommandBufferPtr m_commandBuffer;
 	SamplerPtr m_sampler; ///< A trilinear sampler with anisotropy.
 	StagingGpuMemoryPool* m_stagingGpuAllocator ANKI_DEBUG_CODE(= nullptr);
-	StackAllocator<U8> m_frameAllocator;
+	StackMemoryPool* m_framePool = nullptr;
 	Bool m_debugDraw; ///< If true the drawcall should be drawing some kind of debug mesh.
-	BitSet<U(RenderQueueDebugDrawFlag::COUNT), U32> m_debugDrawFlags = {false};
+	BitSet<U(RenderQueueDebugDrawFlag::kCount), U32> m_debugDrawFlags = {false};
 };
 
 /// Draw callback for drawing.
@@ -163,8 +163,8 @@ static_assert(std::is_trivially_destructible<SpotLightQueueElement>::value == tr
 class DirectionalLightQueueElement final
 {
 public:
-	Array<Mat4, MAX_SHADOW_CASCADES2> m_textureMatrices;
-	Array<RenderQueue*, MAX_SHADOW_CASCADES2> m_shadowRenderQueues;
+	Array<Mat4, kMaxShadowCascades> m_textureMatrices;
+	Array<RenderQueue*, kMaxShadowCascades> m_shadowRenderQueues;
 	RenderQueueDrawCallback m_drawCallback;
 	const void* m_drawCallbackUserData;
 	U64 m_uuid; ///< Zero means that there is no dir light
@@ -172,7 +172,7 @@ public:
 	Vec3 m_direction;
 	F32 m_effectiveShadowDistance;
 	F32 m_shadowCascadesDistancePower;
-	U8 m_shadowCascadeCount; ///< Zero means that it doesn't case any shadows
+	U8 m_shadowCascadeCount; ///< Zero means that it doesn't cast any shadows.
 	U8 m_shadowLayer; ///< Renderer internal.
 
 	DirectionalLightQueueElement()
@@ -436,7 +436,7 @@ public:
 		zeroMemory(m_skybox);
 	}
 
-	PtrSize countAllRenderables() const;
+	U32 countAllRenderables() const;
 };
 
 static_assert(std::is_trivially_destructible<RenderQueue>::value == true, "Should be trivially destructible");

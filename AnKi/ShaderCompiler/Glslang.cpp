@@ -153,40 +153,40 @@ static EShLanguage ankiToGlslangShaderType(ShaderType shaderType)
 	EShLanguage gslangShader;
 	switch(shaderType)
 	{
-	case ShaderType::VERTEX:
+	case ShaderType::kVertex:
 		gslangShader = EShLangVertex;
 		break;
-	case ShaderType::FRAGMENT:
+	case ShaderType::kFragment:
 		gslangShader = EShLangFragment;
 		break;
-	case ShaderType::TESSELLATION_EVALUATION:
+	case ShaderType::kTessellationEvaluation:
 		gslangShader = EShLangTessEvaluation;
 		break;
-	case ShaderType::TESSELLATION_CONTROL:
+	case ShaderType::kTessellationControl:
 		gslangShader = EShLangTessControl;
 		break;
-	case ShaderType::GEOMETRY:
+	case ShaderType::kGeometry:
 		gslangShader = EShLangGeometry;
 		break;
-	case ShaderType::COMPUTE:
+	case ShaderType::kCompute:
 		gslangShader = EShLangCompute;
 		break;
-	case ShaderType::RAY_GEN:
+	case ShaderType::kRayGen:
 		gslangShader = EShLangRayGen;
 		break;
-	case ShaderType::ANY_HIT:
+	case ShaderType::kAnyHit:
 		gslangShader = EShLangAnyHit;
 		break;
-	case ShaderType::CLOSEST_HIT:
+	case ShaderType::kClosestHit:
 		gslangShader = EShLangClosestHit;
 		break;
-	case ShaderType::MISS:
+	case ShaderType::kMiss:
 		gslangShader = EShLangMiss;
 		break;
-	case ShaderType::INTERSECTION:
+	case ShaderType::kIntersection:
 		gslangShader = EShLangIntersect;
 		break;
-	case ShaderType::CALLABLE:
+	case ShaderType::kCallable:
 		gslangShader = EShLangCallable;
 		break;
 	default:
@@ -198,24 +198,24 @@ static EShLanguage ankiToGlslangShaderType(ShaderType shaderType)
 }
 
 /// Parse Glslang's error message for the line of the error.
-static Error parseErrorLine(CString error, GenericMemoryPoolAllocator<U8> alloc, U32& lineNumber)
+static Error parseErrorLine(CString error, BaseMemoryPool& pool, U32& lineNumber)
 {
-	lineNumber = MAX_U32;
+	lineNumber = kMaxU32;
 
-	StringListAuto lines(alloc);
+	StringListRaii lines(&pool);
 	lines.splitString(error, '\n');
 	for(String& line : lines)
 	{
 		if(line.find("ERROR: ") == 0)
 		{
-			StringListAuto tokens(alloc);
+			StringListRaii tokens(&pool);
 			tokens.splitString(line, ':');
 
-			if(tokens.getSize() < 3 || (tokens.getBegin() + 2)->toNumber(lineNumber) != Error::NONE)
+			if(tokens.getSize() < 3 || (tokens.getBegin() + 2)->toNumber(lineNumber) != Error::kNone)
 			{
 
 				ANKI_SHADER_COMPILER_LOGE("Failed to parse the GLSlang error message: %s", error.cstr());
-				return Error::FUNCTION_FAILED;
+				return Error::kFunctionFailed;
 			}
 			else
 			{
@@ -224,21 +224,20 @@ static Error parseErrorLine(CString error, GenericMemoryPoolAllocator<U8> alloc,
 		}
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
-static void createErrorLog(CString glslangError, CString source, GenericMemoryPoolAllocator<U8> alloc,
-						   StringAuto& outError)
+static void createErrorLog(CString glslangError, CString source, BaseMemoryPool& pool, StringRaii& outError)
 {
 	U32 errorLineNumberu = 0;
-	const Error err = parseErrorLine(glslangError, alloc, errorLineNumberu);
+	const Error err = parseErrorLine(glslangError, pool, errorLineNumberu);
 
 	const I32 errorLineNumber = (!err) ? I32(errorLineNumberu) : -1;
 
 	constexpr I32 lineCountAroundError = 4;
 
-	StringAuto prettySrc(alloc);
-	StringListAuto lines(alloc);
+	StringRaii prettySrc(&pool);
+	StringListRaii lines(&pool);
 
 	lines.splitString(source, '\n', true);
 
@@ -249,7 +248,7 @@ static void createErrorLog(CString glslangError, CString source, GenericMemoryPo
 
 		if(lineno >= errorLineNumber - lineCountAroundError && lineno <= errorLineNumber + lineCountAroundError)
 		{
-			prettySrc.append(StringAuto(alloc).sprintf("%s%s\n", (lineno == errorLineNumber) ? ">>  " : "    ",
+			prettySrc.append(StringRaii(&pool).sprintf("%s%s\n", (lineno == errorLineNumber) ? ">>  " : "    ",
 													   (it->isEmpty()) ? " " : (*it).cstr()));
 		}
 	}
@@ -257,7 +256,7 @@ static void createErrorLog(CString glslangError, CString source, GenericMemoryPo
 	outError.sprintf("%sIn:\n%s\n", glslangError.cstr(), prettySrc.cstr());
 }
 
-Error preprocessGlsl(CString in, StringAuto& out)
+Error preprocessGlsl(CString in, StringRaii& out)
 {
 	glslang::TShader shader(EShLangVertex);
 	Array<const char*, 1> csrc = {&in[0]};
@@ -269,16 +268,16 @@ Error preprocessGlsl(CString in, StringAuto& out)
 	if(!shader.preprocess(&GLSLANG_LIMITS, 450, ENoProfile, false, false, messages, &glslangOut, includer))
 	{
 		ANKI_SHADER_COMPILER_LOGE("Preprocessing failed:\n%s", shader.getInfoLog());
-		return Error::USER_DATA;
+		return Error::kUserData;
 	}
 
 	out.append(glslangOut.c_str());
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
-Error compilerGlslToSpirv(CString src, ShaderType shaderType, GenericMemoryPoolAllocator<U8> tmpAlloc,
-						  DynamicArrayAuto<U8>& spirv, StringAuto& errorMessage)
+Error compilerGlslToSpirv(CString src, ShaderType shaderType, BaseMemoryPool& tmpPool, DynamicArrayRaii<U8>& spirv,
+						  StringRaii& errorMessage)
 {
 #if ANKI_GLSLANG_DUMP
 	// Dump it
@@ -286,14 +285,14 @@ Error compilerGlslToSpirv(CString src, ShaderType shaderType, GenericMemoryPoolA
 	{
 		File file;
 
-		StringAuto tmpDir(tmpAlloc);
+		StringRaii tmpDir(&tmpPool);
 		ANKI_CHECK(getTempDirectory(tmpDir));
 
-		StringAuto fname(tmpAlloc);
+		StringRaii fname(&tmpPool);
 		fname.sprintf("%s/%u.glsl", tmpDir.cstr(), dumpFileCount);
 		ANKI_SHADER_COMPILER_LOGW("GLSL dumping is enabled: %s", fname.cstr());
-		ANKI_CHECK(file.open(fname, FileOpenFlag::WRITE));
-		ANKI_CHECK(file.writeText("%s", src.cstr()));
+		ANKI_CHECK(file.open(fname, FileOpenFlag::kWrite));
+		ANKI_CHECK(file.writeTextf("%s", src.cstr()));
 	}
 #endif
 
@@ -307,8 +306,8 @@ Error compilerGlslToSpirv(CString src, ShaderType shaderType, GenericMemoryPoolA
 	shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_4);
 	if(!shader.parse(&GLSLANG_LIMITS, 100, false, messages))
 	{
-		createErrorLog(shader.getInfoLog(), src, tmpAlloc, errorMessage);
-		return Error::USER_DATA;
+		createErrorLog(shader.getInfoLog(), src, tmpPool, errorMessage);
+		return Error::kUserData;
 	}
 
 	// Setup the program
@@ -318,7 +317,7 @@ Error compilerGlslToSpirv(CString src, ShaderType shaderType, GenericMemoryPoolA
 	if(!program.link(messages))
 	{
 		errorMessage.create("glslang failed to link a shader");
-		return Error::USER_DATA;
+		return Error::kUserData;
 	}
 
 	// Gen SPIRV
@@ -337,18 +336,18 @@ Error compilerGlslToSpirv(CString src, ShaderType shaderType, GenericMemoryPoolA
 	{
 		File file;
 
-		StringAuto tmpDir(tmpAlloc);
+		StringRaii tmpDir(&tmpPool);
 		ANKI_CHECK(getTempDirectory(tmpDir));
 
-		StringAuto fname(tmpAlloc);
+		StringRaii fname(&tmpPool);
 		fname.sprintf("%s/%u.spv", tmpDir.cstr(), dumpFileCount);
 		ANKI_SHADER_COMPILER_LOGW("GLSL dumping is enabled: %s", fname.cstr());
-		ANKI_CHECK(file.open(fname, FileOpenFlag::WRITE | FileOpenFlag::BINARY));
+		ANKI_CHECK(file.open(fname, FileOpenFlag::kWrite | FileOpenFlag::kBinary));
 		ANKI_CHECK(file.write(spirv.getBegin(), spirv.getSizeInBytes()));
 	}
 #endif
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

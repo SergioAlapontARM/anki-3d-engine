@@ -22,12 +22,12 @@ U32 getCpuCoresCount();
 void backtraceInternal(const Function<void(CString)>& lambda);
 
 /// Get a backtrace.
-template<typename TFunc>
-void backtrace(GenericMemoryPoolAllocator<U8> alloc, TFunc func)
+template<typename TMemPool, typename TFunc>
+void backtrace(TMemPool& pool, TFunc func)
 {
-	Function<void(CString)> f(alloc, func);
+	Function<void(CString)> f(pool, func);
 	backtraceInternal(f);
-	f.destroy(alloc);
+	f.destroy(pool);
 }
 
 /// Return true if the engine is running from a terminal emulator.
@@ -49,6 +49,9 @@ std::tm getLocalTime();
 /// Takes the return value of getAndroidCommandLineArguments() for cleanup.
 void cleanupGetAndroidCommandLineArguments(void* ptr);
 #endif
+
+/// Some common code to be called before main.
+void preMainInit();
 /// @}
 
 } // end namespace anki

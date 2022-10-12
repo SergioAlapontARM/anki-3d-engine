@@ -18,20 +18,21 @@ public:
 	PtrSize m_pointerCount; ///< The size of the above.
 };
 
-static constexpr const char* BINARY_SERIALIZER_MAGIC = "ANKIBIN1";
+inline constexpr const char* kBinarySerializerMagic = "ANKIBIN1";
 
 } // end namespace detail
 
 template<typename T>
-Error BinarySerializer::serializeInternal(const T& x, GenericMemoryPoolAllocator<U8> tmpAllocator, File& file)
+Error BinarySerializer::serializeInternal(const T& x, BaseMemoryPool& tmpPool, File& file)
 {
 	checkStruct<T>();
 
 	// Misc
 	m_file = &file;
 	ANKI_ASSERT(m_file->tell() == 0);
-	m_err = Error::NONE;
-	m_alloc = tmpAllocator;
+
+	m_err = Error::kNone;
+	m_pool = &tmpPool;
 
 	// Write the empty header (will be filled later)
 	detail::BinarySerializerHeader header = {};
@@ -46,19 +47,19 @@ Error BinarySerializer::serializeInternal(const T& x, GenericMemoryPoolAllocator
 
 	// Finaly, serialize
 	ANKI_CHECK(m_file->write(&x, sizeof(T)));
-	m_structureFilePos.emplaceBack(m_alloc, dataFilePos);
+	m_structureFilePos.emplaceBack(tmpPool, dataFilePos);
 	doValue("root", 0, x);
-	m_structureFilePos.popBack(m_alloc);
+	m_structureFilePos.popBack(tmpPool);
 	if(m_err)
 	{
 		return m_err;
 	}
 
 	// Write all pointers. Do that now and not while writing the actual shader in order to avoid the file seeks
-	DynamicArrayAuto<PtrSize> pointerFilePositions(m_alloc);
+	DynamicArrayRaii<PtrSize> pointerFilePositions(&tmpPool);
 	for(const PointerInfo& pointer : m_pointerFilePositions)
 	{
-		ANKI_CHECK(m_file->seek(pointer.m_filePos, FileSeekOrigin::BEGINNING));
+		ANKI_CHECK(m_file->seek(pointer.m_filePos, FileSeekOrigin::kBeginning));
 		ANKI_CHECK(m_file->write(&pointer.m_value, sizeof(pointer.m_value)));
 
 		const PtrSize offsetAfterHeader = pointer.m_filePos - m_beginOfDataFilePos;
@@ -69,23 +70,23 @@ Error BinarySerializer::serializeInternal(const T& x, GenericMemoryPoolAllocator
 	// Write the pointer offsets
 	if(pointerFilePositions.getSize() > 0)
 	{
-		ANKI_CHECK(m_file->seek(m_eofPos, FileSeekOrigin::BEGINNING));
+		ANKI_CHECK(m_file->seek(m_eofPos, FileSeekOrigin::kBeginning));
 		ANKI_CHECK(m_file->write(&pointerFilePositions[0], pointerFilePositions.getSizeInBytes()));
 		header.m_pointerCount = pointerFilePositions.getSize();
 		header.m_pointerArrayFilePosition = m_eofPos;
 	}
 
 	// Write the header
-	memcpy(&header.m_magic[0], detail::BINARY_SERIALIZER_MAGIC, sizeof(header.m_magic));
+	memcpy(&header.m_magic[0], detail::kBinarySerializerMagic, sizeof(header.m_magic));
 	header.m_dataSize = m_eofPos - dataFilePos;
-	ANKI_CHECK(m_file->seek(headerFilePos, FileSeekOrigin::BEGINNING));
+	ANKI_CHECK(m_file->seek(headerFilePos, FileSeekOrigin::kBeginning));
 	ANKI_CHECK(m_file->write(&header, sizeof(header)));
 
 	// Done
 	m_file = nullptr;
-	m_pointerFilePositions.destroy(m_alloc);
-	m_alloc = GenericMemoryPoolAllocator<U8>();
-	return Error::NONE;
+	m_pointerFilePositions.destroy(tmpPool);
+	m_pool = nullptr;
+	return Error::kNone;
 }
 
 template<typename T>
@@ -99,19 +100,19 @@ Error BinarySerializer::doArrayComplexType(const T* arr, PtrSize size, PtrSize m
 	PtrSize structFilePos = m_structureFilePos.getBack() + memberOffset;
 	for(PtrSize i = 0; i < size; ++i)
 	{
-		m_structureFilePos.emplaceBack(m_alloc, structFilePos);
+		m_structureFilePos.emplaceBack(*m_pool, structFilePos);
 
 		// Serialize the pointers
 		SerializeFunctor<T>()(arr[i], *this);
 		ANKI_CHECK(m_err);
 
 		// Advance file pos
-		m_structureFilePos.popBack(m_alloc);
+		m_structureFilePos.popBack(*m_pool);
 		structFilePos += sizeof(T);
 	}
 
 	check();
-	return Error::NONE;
+	return Error::kNone;
 }
 
 template<typename T>
@@ -138,31 +139,31 @@ Error BinarySerializer::doDynamicArrayComplexType(const T* arr, PtrSize size, Pt
 		PointerInfo pinfo;
 		pinfo.m_filePos = structFilePos + memberOffset;
 		pinfo.m_value = arrayFilePos - m_beginOfDataFilePos;
-		m_pointerFilePositions.emplaceBack(m_alloc, pinfo);
+		m_pointerFilePositions.emplaceBack(*m_pool, pinfo);
 
 		// Write the structures
-		ANKI_CHECK(m_file->seek(arrayFilePos, FileSeekOrigin::BEGINNING));
+		ANKI_CHECK(m_file->seek(arrayFilePos, FileSeekOrigin::kBeginning));
 		ANKI_CHECK(m_file->write(&arr[0], sizeof(T) * size));
 
 		// Basically serialize pointers
 		for(PtrSize i = 0; i < size && !m_err; ++i)
 		{
-			m_structureFilePos.emplaceBack(m_alloc, arrayFilePos);
+			m_structureFilePos.emplaceBack(*m_pool, arrayFilePos);
 
 			SerializeFunctor<T>()(arr[i], *this);
 
-			m_structureFilePos.popBack(m_alloc);
+			m_structureFilePos.popBack(*m_pool);
 			arrayFilePos += sizeof(T);
 		}
 		ANKI_CHECK(m_err);
 	}
 
 	check();
-	return Error::NONE;
+	return Error::kNone;
 }
 
 template<typename T, typename TFile>
-Error BinaryDeserializer::deserialize(T*& x, GenericMemoryPoolAllocator<U8> allocator, TFile& file)
+Error BinaryDeserializer::deserialize(T*& x, BaseMemoryPool& pool, TFile& file)
 {
 	x = nullptr;
 
@@ -172,16 +173,16 @@ Error BinaryDeserializer::deserialize(T*& x, GenericMemoryPoolAllocator<U8> allo
 
 	// Sanity checks
 	{
-		if(memcmp(&header.m_magic[0], detail::BINARY_SERIALIZER_MAGIC, 8) != 0)
+		if(memcmp(&header.m_magic[0], detail::kBinarySerializerMagic, 8) != 0)
 		{
 			ANKI_UTIL_LOGE("Wrong magic work in header");
-			return Error::USER_DATA;
+			return Error::kUserData;
 		}
 
 		if(header.m_dataSize < sizeof(T))
 		{
 			ANKI_UTIL_LOGE("Wrong data size");
-			return Error::USER_DATA;
+			return Error::kUserData;
 		}
 
 		const PtrSize expectedSizeAfterHeader = header.m_dataSize + header.m_pointerCount * sizeof(void*);
@@ -189,19 +190,18 @@ Error BinaryDeserializer::deserialize(T*& x, GenericMemoryPoolAllocator<U8> allo
 		if(expectedSizeAfterHeader > actualSizeAfterHeader)
 		{
 			ANKI_UTIL_LOGE("File size doesn't match expectations");
-			return Error::USER_DATA;
+			return Error::kUserData;
 		}
 	}
 
 	// Allocate & read data
-	U8* const baseAddress =
-		static_cast<U8*>(allocator.getMemoryPool().allocate(header.m_dataSize, ANKI_SAFE_ALIGNMENT));
+	U8* const baseAddress = static_cast<U8*>(pool.allocate(header.m_dataSize, ANKI_SAFE_ALIGNMENT));
 	ANKI_CHECK(file.read(baseAddress, header.m_dataSize));
 
 	// Fix pointers
 	if(header.m_pointerCount)
 	{
-		ANKI_CHECK(file.seek(header.m_pointerArrayFilePosition, FileSeekOrigin::BEGINNING));
+		ANKI_CHECK(file.seek(header.m_pointerArrayFilePosition, FileSeekOrigin::kBeginning));
 		for(PtrSize i = 0; i < header.m_pointerCount; ++i)
 		{
 			// Read the location of the pointer
@@ -210,7 +210,7 @@ Error BinaryDeserializer::deserialize(T*& x, GenericMemoryPoolAllocator<U8> allo
 			if(offsetFromBeginOfData >= header.m_dataSize)
 			{
 				ANKI_UTIL_LOGE("Corrupt pointer");
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			// Add to the location the actual base address
@@ -219,7 +219,7 @@ Error BinaryDeserializer::deserialize(T*& x, GenericMemoryPoolAllocator<U8> allo
 			if(ptrValue >= header.m_dataSize)
 			{
 				ANKI_UTIL_LOGE("Corrupt pointer");
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			ptrValue += ptrToNumber(baseAddress);
@@ -228,7 +228,7 @@ Error BinaryDeserializer::deserialize(T*& x, GenericMemoryPoolAllocator<U8> allo
 
 	// Done
 	x = reinterpret_cast<T*>(baseAddress);
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

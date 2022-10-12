@@ -22,8 +22,8 @@ void AccelerationStructureBuilder::populateRenderGraph(RenderingContext& ctx)
 	ANKI_ASSERT(instanceCount > 0);
 
 	// Create the instances. Allocate but not construct to save some CPU time
-	void* instancesMem = ctx.m_tempAllocator.getMemoryPool().allocate(
-		sizeof(AccelerationStructureInstance) * instanceCount, alignof(AccelerationStructureInstance));
+	void* instancesMem = ctx.m_tempPool->allocate(sizeof(AccelerationStructureInstance) * instanceCount,
+												  alignof(AccelerationStructureInstance));
 	WeakArray<AccelerationStructureInstance> instances(static_cast<AccelerationStructureInstance*>(instancesMem),
 													   instanceCount);
 
@@ -42,7 +42,7 @@ void AccelerationStructureBuilder::populateRenderGraph(RenderingContext& ctx)
 
 	// Create the TLAS
 	AccelerationStructureInitInfo initInf("MainTlas");
-	initInf.m_type = AccelerationStructureType::TOP_LEVEL;
+	initInf.m_type = AccelerationStructureType::kTopLevel;
 	initInf.m_topLevel.m_instances = instances;
 	m_runCtx.m_tlas = getGrManager().newAccelerationStructure(initInf);
 
@@ -54,14 +54,14 @@ void AccelerationStructureBuilder::populateRenderGraph(RenderingContext& ctx)
 
 	// Build the job
 	RenderGraphDescription& rgraph = ctx.m_renderGraphDescr;
-	m_runCtx.m_tlasHandle = rgraph.importAccelerationStructure(m_runCtx.m_tlas, AccelerationStructureUsageBit::NONE);
+	m_runCtx.m_tlasHandle = rgraph.importAccelerationStructure(m_runCtx.m_tlas, AccelerationStructureUsageBit::kNone);
 	ComputeRenderPassDescription& rpass = rgraph.newComputeRenderPass("BuildTlas");
 	rpass.setWork([this](RenderPassWorkContext& rgraphCtx) {
 		ANKI_TRACE_SCOPED_EVENT(R_TLAS);
 		rgraphCtx.m_commandBuffer->buildAccelerationStructure(m_runCtx.m_tlas);
 	});
 
-	rpass.newDependency(RenderPassDependency(m_runCtx.m_tlasHandle, AccelerationStructureUsageBit::BUILD));
+	rpass.newAccelerationStructureDependency(m_runCtx.m_tlasHandle, AccelerationStructureUsageBit::kBuild);
 }
 
 } // end namespace anki

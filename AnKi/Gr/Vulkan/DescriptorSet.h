@@ -26,9 +26,9 @@ class alignas(8) DescriptorBinding
 {
 public:
 	U32 m_arraySize = 0;
-	ShaderTypeBit m_stageMask = ShaderTypeBit::NONE;
-	DescriptorType m_type = DescriptorType::COUNT;
-	U8 m_binding = MAX_U8;
+	ShaderTypeBit m_stageMask = ShaderTypeBit::kNone;
+	DescriptorType m_type = DescriptorType::kCount;
+	U8 m_binding = kMaxU8;
 };
 static_assert(sizeof(DescriptorBinding) == 8, "Should be packed because it will be hashed");
 
@@ -174,9 +174,9 @@ class DescriptorSetState
 	friend class DescriptorSetFactory;
 
 public:
-	void init(StackAllocator<U8>& alloc)
+	void init(StackMemoryPool* pool)
 	{
-		m_alloc = alloc;
+		m_pool = pool;
 	}
 
 	void setLayout(const DescriptorSetLayout& layout)
@@ -201,7 +201,7 @@ public:
 
 		AnyBinding& b = getBindingToPopulate(binding, arrayIdx);
 		b = {};
-		b.m_type = DescriptorType::COMBINED_TEXTURE_SAMPLER;
+		b.m_type = DescriptorType::kCombinedTextureSampler;
 		b.m_uuids[0] = viewImpl.getHash();
 		b.m_uuids[1] = ptrToNumber(static_cast<const SamplerImpl*>(sampler)->m_sampler->getHandle());
 
@@ -220,7 +220,7 @@ public:
 
 		AnyBinding& b = getBindingToPopulate(binding, arrayIdx);
 		b = {};
-		b.m_type = DescriptorType::TEXTURE;
+		b.m_type = DescriptorType::kTexture;
 		b.m_uuids[0] = b.m_uuids[1] = viewImpl.getHash();
 
 		b.m_tex.m_imgViewHandle = viewImpl.getHandle();
@@ -234,7 +234,7 @@ public:
 	{
 		AnyBinding& b = getBindingToPopulate(binding, arrayIdx);
 		b = {};
-		b.m_type = DescriptorType::SAMPLER;
+		b.m_type = DescriptorType::kSampler;
 		b.m_uuids[0] = b.m_uuids[1] = ptrToNumber(static_cast<const SamplerImpl*>(sampler)->m_sampler->getHandle());
 		b.m_sampler.m_samplerHandle = static_cast<const SamplerImpl*>(sampler)->m_sampler->getHandle();
 
@@ -246,7 +246,7 @@ public:
 	{
 		AnyBinding& b = getBindingToPopulate(binding, arrayIdx);
 		b = {};
-		b.m_type = DescriptorType::UNIFORM_BUFFER;
+		b.m_type = DescriptorType::kUniformBuffer;
 		b.m_uuids[0] = b.m_uuids[1] = buff->getUuid();
 
 		b.m_buff.m_buffHandle = static_cast<const BufferImpl*>(buff)->getHandle();
@@ -261,7 +261,7 @@ public:
 	{
 		AnyBinding& b = getBindingToPopulate(binding, arrayIdx);
 		b = {};
-		b.m_type = DescriptorType::STORAGE_BUFFER;
+		b.m_type = DescriptorType::kStorageBuffer;
 		b.m_uuids[0] = b.m_uuids[1] = buff->getUuid();
 
 		b.m_buff.m_buffHandle = static_cast<const BufferImpl*>(buff)->getHandle();
@@ -278,7 +278,7 @@ public:
 		const VkBufferView view = static_cast<const BufferImpl*>(buff)->getOrCreateBufferView(fmt, offset, range);
 		AnyBinding& b = getBindingToPopulate(binding, arrayIdx);
 		b = {};
-		b.m_type = DescriptorType::READ_TEXTURE_BUFFER;
+		b.m_type = DescriptorType::kReadTextureBuffer;
 		b.m_uuids[0] = ptrToNumber(view);
 		b.m_uuids[1] = buff->getUuid();
 
@@ -296,7 +296,7 @@ public:
 
 		AnyBinding& b = getBindingToPopulate(binding, arrayIdx);
 		b = {};
-		b.m_type = DescriptorType::IMAGE;
+		b.m_type = DescriptorType::kImage;
 		ANKI_ASSERT(impl->getHash());
 		b.m_uuids[0] = b.m_uuids[1] = impl->getHash();
 		b.m_image.m_imgViewHandle = impl->getHandle();
@@ -309,7 +309,7 @@ public:
 	{
 		AnyBinding& b = getBindingToPopulate(binding, arrayIdx);
 		b = {};
-		b.m_type = DescriptorType::ACCELERATION_STRUCTURE;
+		b.m_type = DescriptorType::kAccelerationStructure;
 		b.m_uuids[0] = b.m_uuids[1] = as->getUuid();
 		b.m_accelerationStructure.m_accelerationStructureHandle =
 			static_cast<const AccelerationStructureImpl*>(as)->getHandle();
@@ -326,22 +326,22 @@ public:
 	}
 
 private:
-	StackAllocator<U8> m_alloc;
+	StackMemoryPool* m_pool = nullptr;
 	DescriptorSetLayout m_layout;
 
-	Array<AnyBindingExtended, MAX_BINDINGS_PER_DESCRIPTOR_SET> m_bindings;
+	Array<AnyBindingExtended, kMaxBindingsPerDescriptorSet> m_bindings;
 
 	U64 m_lastHash = 0;
 
-	BitSet<MAX_BINDINGS_PER_DESCRIPTOR_SET, U32> m_dirtyBindings = {true};
-	BitSet<MAX_BINDINGS_PER_DESCRIPTOR_SET, U32> m_bindingSet = {false};
+	BitSet<kMaxBindingsPerDescriptorSet, U32> m_dirtyBindings = {true};
+	BitSet<kMaxBindingsPerDescriptorSet, U32> m_bindingSet = {false};
 	Bool m_layoutDirty = true;
 	Bool m_bindlessDSetDirty = true;
 	Bool m_bindlessDSetBound = false;
 
 	/// Only DescriptorSetFactory should call this.
 	/// @param hash If hash is zero then the DS doesn't need rebind.
-	void flush(U64& hash, Array<PtrSize, MAX_BINDINGS_PER_DESCRIPTOR_SET>& dynamicOffsets, U32& dynamicOffsetCount,
+	void flush(U64& hash, Array<PtrSize, kMaxBindingsPerDescriptorSet>& dynamicOffsets, U32& dynamicOffsetCount,
 			   Bool& bindlessDSet);
 
 	void unbindBindlessDSet()
@@ -361,7 +361,7 @@ public:
 	DescriptorSetFactory() = default;
 	~DescriptorSetFactory();
 
-	Error init(const GrAllocator<U8>& alloc, VkDevice dev, U32 bindlessTextureCount, U32 bindlessTextureBuffers);
+	Error init(HeapMemoryPool* pool, VkDevice dev, U32 bindlessTextureCount, U32 bindlessTextureBuffers);
 
 	void destroy();
 
@@ -369,8 +369,8 @@ public:
 	Error newDescriptorSetLayout(const DescriptorSetLayoutInitInfo& init, DescriptorSetLayout& layout);
 
 	/// @note It's thread-safe.
-	Error newDescriptorSet(StackAllocator<U8>& tmpAlloc, DescriptorSetState& state, DescriptorSet& set, Bool& dirty,
-						   Array<PtrSize, MAX_BINDINGS_PER_DESCRIPTOR_SET>& dynamicOffsets, U32& dynamicOffsetCount);
+	Error newDescriptorSet(StackMemoryPool& tmpPool, DescriptorSetState& state, DescriptorSet& set, Bool& dirty,
+						   Array<PtrSize, kMaxBindingsPerDescriptorSet>& dynamicOffsets, U32& dynamicOffsetCount);
 
 	void endFrame()
 	{
@@ -400,7 +400,7 @@ private:
 	DynamicArray<ThreadLocal*> m_allThreadLocals;
 	Mutex m_allThreadLocalsMtx;
 
-	GrAllocator<U8> m_alloc;
+	HeapMemoryPool* m_pool = nullptr;
 	VkDevice m_dev = VK_NULL_HANDLE;
 	U64 m_frameCount = 0;
 
@@ -408,8 +408,8 @@ private:
 	SpinLock m_cachesMtx; ///< Not a mutex because after a while there will be no reason to lock
 
 	BindlessDescriptorSet* m_bindless = nullptr;
-	U32 m_bindlessTextureCount = MAX_U32;
-	U32 m_bindlessUniformTexelBufferCount = MAX_U32;
+	U32 m_bindlessTextureCount = kMaxU32;
+	U32 m_bindlessUniformTexelBufferCount = kMaxU32;
 };
 /// @}
 

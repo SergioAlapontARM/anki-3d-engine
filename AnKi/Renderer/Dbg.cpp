@@ -32,18 +32,18 @@ Error Dbg::init()
 
 	// RT descr
 	m_rtDescr = m_r->create2DRenderTargetDescription(m_r->getInternalResolution().x(), m_r->getInternalResolution().y(),
-													 DBG_COLOR_ATTACHMENT_PIXEL_FORMAT, "Dbg");
+													 Format::kR8G8B8A8_Unorm, "Dbg");
 	m_rtDescr.bake();
 
 	// Create FB descr
 	m_fbDescr.m_colorAttachmentCount = 1;
-	m_fbDescr.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::CLEAR;
-	m_fbDescr.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::LOAD;
-	m_fbDescr.m_depthStencilAttachment.m_stencilLoadOperation = AttachmentLoadOperation::DONT_CARE;
-	m_fbDescr.m_depthStencilAttachment.m_aspect = DepthStencilAspectBit::DEPTH;
+	m_fbDescr.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::kClear;
+	m_fbDescr.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::kLoad;
+	m_fbDescr.m_depthStencilAttachment.m_stencilLoadOperation = AttachmentLoadOperation::kDontCare;
+	m_fbDescr.m_depthStencilAttachment.m_aspect = DepthStencilAspectBit::kDepth;
 	m_fbDescr.bake();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void Dbg::run(RenderPassWorkContext& rgraphCtx, const RenderingContext& ctx)
@@ -58,9 +58,9 @@ void Dbg::run(RenderPassWorkContext& rgraphCtx, const RenderingContext& ctx)
 
 	cmdb->bindSampler(0, 0, m_r->getSamplers().m_nearestNearestClamp);
 
-	rgraphCtx.bindTexture(0, 1, m_r->getGBuffer().getDepthRt(), TextureSubresourceInfo(DepthStencilAspectBit::DEPTH));
+	rgraphCtx.bindTexture(0, 1, m_r->getGBuffer().getDepthRt(), TextureSubresourceInfo(DepthStencilAspectBit::kDepth));
 
-	cmdb->setBlendFactors(0, BlendFactor::SRC_ALPHA, BlendFactor::ONE_MINUS_SRC_ALPHA);
+	cmdb->setBlendFactors(0, BlendFactor::kSrcAlpha, BlendFactor::kOneMinusSrcAlpha);
 
 	// Set the context
 	RenderQueueDrawContext dctx;
@@ -69,10 +69,10 @@ void Dbg::run(RenderPassWorkContext& rgraphCtx, const RenderingContext& ctx)
 	dctx.m_projectionMatrix = ctx.m_renderQueue->m_projectionMatrix;
 	dctx.m_cameraTransform = ctx.m_renderQueue->m_cameraTransform;
 	dctx.m_stagingGpuAllocator = &m_r->getStagingGpuMemory();
-	dctx.m_frameAllocator = ctx.m_tempAllocator;
+	dctx.m_framePool = ctx.m_tempPool;
 	dctx.m_commandBuffer = cmdb;
 	dctx.m_sampler = m_r->getSamplers().m_trilinearRepeatAniso;
-	dctx.m_key = RenderingKey(RenderingTechnique::FORWARD, 0, 1, false, false);
+	dctx.m_key = RenderingKey(RenderingTechnique::kForward, 0, 1, false, false);
 	dctx.m_debugDraw = true;
 	dctx.m_debugDrawFlags = m_debugDrawFlags;
 
@@ -181,9 +181,9 @@ void Dbg::populateRenderGraph(RenderingContext& ctx)
 
 	pass.setFramebufferInfo(m_fbDescr, {m_runCtx.m_rt}, m_r->getGBuffer().getDepthRt());
 
-	pass.newDependency({m_runCtx.m_rt, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE});
-	pass.newDependency({m_r->getGBuffer().getDepthRt(),
-						TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::FRAMEBUFFER_ATTACHMENT_READ});
+	pass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kFramebufferWrite);
+	pass.newTextureDependency(m_r->getGBuffer().getDepthRt(),
+							  TextureUsageBit::kSampledFragment | TextureUsageBit::kFramebufferRead);
 }
 
 } // end namespace anki

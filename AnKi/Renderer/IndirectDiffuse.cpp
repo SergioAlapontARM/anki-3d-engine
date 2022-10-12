@@ -38,14 +38,14 @@ Error IndirectDiffuse::initInternal()
 	const Bool preferCompute = getConfig().getRPreferCompute();
 
 	// Init textures
-	TextureUsageBit usage = TextureUsageBit::ALL_SAMPLED;
+	TextureUsageBit usage = TextureUsageBit::kAllSampled;
 
-	usage |= (preferCompute) ? TextureUsageBit::IMAGE_COMPUTE_WRITE : TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+	usage |= (preferCompute) ? TextureUsageBit::kImageComputeWrite : TextureUsageBit::kFramebufferWrite;
 	TextureInitInfo texInit =
 		m_r->create2DRenderTargetInitInfo(size.x(), size.y(), m_r->getHdrFormat(), usage, "IndirectDiffuse #1");
-	m_rts[0] = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::ALL_SAMPLED);
+	m_rts[0] = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::kAllSampled);
 	texInit.setName("IndirectDiffuse #2");
-	m_rts[1] = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::ALL_SAMPLED);
+	m_rts[1] = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::kAllSampled);
 
 	if(!preferCompute)
 	{
@@ -62,7 +62,7 @@ Error IndirectDiffuse::initInternal()
 
 		const UVec2 rez = (size + m_vrs.m_sriTexelDimension - 1) / m_vrs.m_sriTexelDimension;
 		m_vrs.m_rtHandle =
-			m_r->create2DRenderTargetDescription(rez.x(), rez.y(), Format::R8_UINT, "IndirectDiffuseVrsSri");
+			m_r->create2DRenderTargetDescription(rez.x(), rez.y(), Format::kR8_Uint, "IndirectDiffuseVrsSri");
 		m_vrs.m_rtHandle.bake();
 
 		ANKI_CHECK(getResourceManager().loadResource("ShaderBinaries/IndirectDiffuseVrsSriGeneration.ankiprogbin",
@@ -133,7 +133,7 @@ Error IndirectDiffuse::initInternal()
 		m_denoise.m_grProgs[1] = variant->getProgram();
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
@@ -168,9 +168,9 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 
 		ComputeRenderPassDescription& pass = rgraph.newComputeRenderPass("IndirectDiffuse VRS SRI gen");
 
-		pass.newDependency(RenderPassDependency(m_runCtx.m_sriRt, TextureUsageBit::IMAGE_COMPUTE_WRITE));
-		pass.newDependency(RenderPassDependency(m_r->getDepthDownscale().getHiZRt(), TextureUsageBit::SAMPLED_COMPUTE,
-												HIZ_HALF_DEPTH));
+		pass.newTextureDependency(m_runCtx.m_sriRt, TextureUsageBit::kImageComputeWrite);
+		pass.newTextureDependency(m_r->getDepthDownscale().getHiZRt(), TextureUsageBit::kSampledCompute,
+								  kHiZHalfSurface);
 
 		pass.setWork([this, &ctx](RenderPassWorkContext& rgraphCtx) {
 			const UVec2 viewport = m_r->getInternalResolution() / 2u;
@@ -179,7 +179,7 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 
 			cmdb->bindShaderProgram(m_vrs.m_grProg);
 
-			rgraphCtx.bindTexture(0, 0, m_r->getDepthDownscale().getHiZRt(), HIZ_HALF_DEPTH);
+			rgraphCtx.bindTexture(0, 0, m_r->getDepthDownscale().getHiZRt(), kHiZHalfSurface);
 			cmdb->bindSampler(0, 1, m_r->getSamplers().m_nearestNearestClamp);
 			rgraphCtx.bindImage(0, 2, m_runCtx.m_sriRt);
 
@@ -211,8 +211,8 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 		}
 		else
 		{
-			m_runCtx.m_mainRtHandles[0] = rgraph.importRenderTarget(m_rts[readRtIdx], TextureUsageBit::ALL_SAMPLED);
-			m_runCtx.m_mainRtHandles[1] = rgraph.importRenderTarget(m_rts[writeRtIdx], TextureUsageBit::ALL_SAMPLED);
+			m_runCtx.m_mainRtHandles[0] = rgraph.importRenderTarget(m_rts[readRtIdx], TextureUsageBit::kAllSampled);
+			m_runCtx.m_mainRtHandles[1] = rgraph.importRenderTarget(m_rts[writeRtIdx], TextureUsageBit::kAllSampled);
 			m_rtsImportedOnce = true;
 		}
 
@@ -223,37 +223,36 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 		if(preferCompute)
 		{
 			ComputeRenderPassDescription& rpass = rgraph.newComputeRenderPass("IndirectDiffuse");
-			readUsage = TextureUsageBit::SAMPLED_COMPUTE;
-			writeUsage = TextureUsageBit::IMAGE_COMPUTE_WRITE;
+			readUsage = TextureUsageBit::kSampledCompute;
+			writeUsage = TextureUsageBit::kImageComputeWrite;
 			prpass = &rpass;
 		}
 		else
 		{
 			GraphicsRenderPassDescription& rpass = rgraph.newGraphicsRenderPass("IndirectDiffuse");
-			rpass.setFramebufferInfo(m_main.m_fbDescr, {m_runCtx.m_mainRtHandles[WRITE]}, {},
+			rpass.setFramebufferInfo(m_main.m_fbDescr, {m_runCtx.m_mainRtHandles[kWrite]}, {},
 									 (enableVrs) ? m_runCtx.m_sriRt : RenderTargetHandle());
-			readUsage = TextureUsageBit::SAMPLED_FRAGMENT;
-			writeUsage = TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+			readUsage = TextureUsageBit::kSampledFragment;
+			writeUsage = TextureUsageBit::kFramebufferWrite;
 			prpass = &rpass;
 
 			if(enableVrs)
 			{
-				prpass->newDependency(
-					RenderPassDependency(m_runCtx.m_sriRt, TextureUsageBit::FRAMEBUFFER_SHADING_RATE));
+				prpass->newTextureDependency(m_runCtx.m_sriRt, TextureUsageBit::kFramebufferShadingRate);
 			}
 		}
 
-		prpass->newDependency(RenderPassDependency(m_runCtx.m_mainRtHandles[WRITE], writeUsage));
+		prpass->newTextureDependency(m_runCtx.m_mainRtHandles[kWrite], writeUsage);
 
 		m_r->getIndirectDiffuseProbes().setRenderGraphDependencies(ctx, *prpass, readUsage);
-		prpass->newDependency(RenderPassDependency(m_r->getGBuffer().getColorRt(2), readUsage));
+		prpass->newTextureDependency(m_r->getGBuffer().getColorRt(2), readUsage);
 		TextureSubresourceInfo hizSubresource;
 		hizSubresource.m_mipmapCount = 1;
-		prpass->newDependency(RenderPassDependency(m_r->getDepthDownscale().getHiZRt(), readUsage, hizSubresource));
-		prpass->newDependency(RenderPassDependency(m_r->getDownscaleBlur().getRt(), readUsage));
-		prpass->newDependency(RenderPassDependency(m_r->getMotionVectors().getMotionVectorsRt(), readUsage));
-		prpass->newDependency(RenderPassDependency(m_r->getMotionVectors().getHistoryLengthRt(), readUsage));
-		prpass->newDependency(RenderPassDependency(m_runCtx.m_mainRtHandles[READ], readUsage));
+		prpass->newTextureDependency(m_r->getDepthDownscale().getHiZRt(), readUsage, hizSubresource);
+		prpass->newTextureDependency(m_r->getDownscaleBlur().getRt(), readUsage);
+		prpass->newTextureDependency(m_r->getMotionVectors().getMotionVectorsRt(), readUsage);
+		prpass->newTextureDependency(m_r->getMotionVectors().getHistoryLengthRt(), readUsage);
+		prpass->newTextureDependency(m_runCtx.m_mainRtHandles[kRead], readUsage);
 
 		prpass->setWork([this, &ctx, enableVrs](RenderPassWorkContext& rgraphCtx) {
 			CommandBufferPtr& cmdb = rgraphCtx.m_commandBuffer;
@@ -272,13 +271,13 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 			hizSubresource.m_mipmapCount = 1;
 			rgraphCtx.bindTexture(0, 6, m_r->getDepthDownscale().getHiZRt(), hizSubresource);
 			rgraphCtx.bindColorTexture(0, 7, m_r->getDownscaleBlur().getRt());
-			rgraphCtx.bindColorTexture(0, 8, m_runCtx.m_mainRtHandles[READ]);
+			rgraphCtx.bindColorTexture(0, 8, m_runCtx.m_mainRtHandles[kRead]);
 			rgraphCtx.bindColorTexture(0, 9, m_r->getMotionVectors().getMotionVectorsRt());
 			rgraphCtx.bindColorTexture(0, 10, m_r->getMotionVectors().getHistoryLengthRt());
 
 			if(getConfig().getRPreferCompute())
 			{
-				rgraphCtx.bindImage(0, 11, m_runCtx.m_mainRtHandles[WRITE]);
+				rgraphCtx.bindImage(0, 11, m_runCtx.m_mainRtHandles[kWrite]);
 			}
 
 			// Bind uniforms
@@ -304,10 +303,10 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 
 				if(enableVrs)
 				{
-					cmdb->setVrsRate(VrsRate::_1x1);
+					cmdb->setVrsRate(VrsRate::k1x1);
 				}
 
-				cmdb->drawArrays(PrimitiveTopology::TRIANGLES, 3);
+				cmdb->drawArrays(PrimitiveTopology::kTriangles, 3);
 			}
 		});
 	}
@@ -315,7 +314,7 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 	// Denoise
 	for(U32 dir = 0; dir < 2; ++dir)
 	{
-		const U32 readIdx = (dir == 0) ? WRITE : READ;
+		const U32 readIdx = (dir == 0) ? kWrite : kRead;
 
 		TextureUsageBit readUsage;
 		TextureUsageBit writeUsage;
@@ -324,8 +323,8 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 		{
 			ComputeRenderPassDescription& rpass =
 				rgraph.newComputeRenderPass((dir == 0) ? "IndirectDiffuseDenoiseH" : "IndirectDiffuseDenoiseV");
-			readUsage = TextureUsageBit::SAMPLED_COMPUTE;
-			writeUsage = TextureUsageBit::IMAGE_COMPUTE_WRITE;
+			readUsage = TextureUsageBit::kSampledCompute;
+			writeUsage = TextureUsageBit::kImageComputeWrite;
 			prpass = &rpass;
 		}
 		else
@@ -333,17 +332,17 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 			GraphicsRenderPassDescription& rpass =
 				rgraph.newGraphicsRenderPass((dir == 0) ? "IndirectDiffuseDenoiseH" : "IndirectDiffuseDenoiseV");
 			rpass.setFramebufferInfo(m_denoise.m_fbDescr, {m_runCtx.m_mainRtHandles[!readIdx]});
-			readUsage = TextureUsageBit::SAMPLED_FRAGMENT;
-			writeUsage = TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+			readUsage = TextureUsageBit::kSampledFragment;
+			writeUsage = TextureUsageBit::kFramebufferWrite;
 			prpass = &rpass;
 		}
 
-		prpass->newDependency(RenderPassDependency(m_runCtx.m_mainRtHandles[readIdx], readUsage));
+		prpass->newTextureDependency(m_runCtx.m_mainRtHandles[readIdx], readUsage);
 
 		TextureSubresourceInfo hizSubresource;
 		hizSubresource.m_mipmapCount = 1;
-		prpass->newDependency(RenderPassDependency(m_r->getDepthDownscale().getHiZRt(), readUsage, hizSubresource));
-		prpass->newDependency(RenderPassDependency(m_runCtx.m_mainRtHandles[!readIdx], writeUsage));
+		prpass->newTextureDependency(m_r->getDepthDownscale().getHiZRt(), readUsage, hizSubresource);
+		prpass->newTextureDependency(m_runCtx.m_mainRtHandles[!readIdx], writeUsage);
 
 		prpass->setWork([this, &ctx, dir, readIdx](RenderPassWorkContext& rgraphCtx) {
 			CommandBufferPtr& cmdb = rgraphCtx.m_commandBuffer;
@@ -377,23 +376,23 @@ void IndirectDiffuse::populateRenderGraph(RenderingContext& ctx)
 			{
 				cmdb->setViewport(0, 0, unis.m_viewportSize.x(), unis.m_viewportSize.y());
 
-				cmdb->drawArrays(PrimitiveTopology::TRIANGLES, 3);
+				cmdb->drawArrays(PrimitiveTopology::kTriangles, 3);
 			}
 		});
 	}
 }
 
-void IndirectDiffuse::getDebugRenderTarget(CString rtName, RenderTargetHandle& handle,
+void IndirectDiffuse::getDebugRenderTarget(CString rtName, Array<RenderTargetHandle, kMaxDebugRenderTargets>& handles,
 										   ShaderProgramPtr& optionalShaderProgram) const
 {
 	if(rtName == "IndirectDiffuse")
 	{
-		handle = m_runCtx.m_mainRtHandles[WRITE];
+		handles[0] = m_runCtx.m_mainRtHandles[kWrite];
 	}
 	else
 	{
 		ANKI_ASSERT(rtName == "IndirectDiffuseVrsSri");
-		handle = m_runCtx.m_sriRt;
+		handles[0] = m_runCtx.m_sriRt;
 		optionalShaderProgram = m_vrs.m_visualizeGrProg;
 	}
 }

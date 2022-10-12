@@ -13,11 +13,11 @@
 
 namespace anki {
 
-#define ANKI_R_LOGI(...) ANKI_LOG("R   ", NORMAL, __VA_ARGS__)
-#define ANKI_R_LOGE(...) ANKI_LOG("R   ", ERROR, __VA_ARGS__)
-#define ANKI_R_LOGW(...) ANKI_LOG("R   ", WARNING, __VA_ARGS__)
-#define ANKI_R_LOGF(...) ANKI_LOG("R   ", FATAL, __VA_ARGS__)
-#define ANKI_R_LOGV(...) ANKI_LOG("R   ", VERBOSE, __VA_ARGS__)
+#define ANKI_R_LOGI(...) ANKI_LOG("REND", kNormal, __VA_ARGS__)
+#define ANKI_R_LOGE(...) ANKI_LOG("REND", kError, __VA_ARGS__)
+#define ANKI_R_LOGW(...) ANKI_LOG("REND", kWarning, __VA_ARGS__)
+#define ANKI_R_LOGF(...) ANKI_LOG("REND", kFatal, __VA_ARGS__)
+#define ANKI_R_LOGV(...) ANKI_LOG("REND", kVerbose, __VA_ARGS__)
 
 // Forward
 #define ANKI_RENDERER_OBJECT_DEF(a, b) class a;
@@ -42,22 +42,18 @@ class ShaderProgramResourceVariant;
 /// @{
 
 /// Don't create second level command buffers if they contain more drawcalls than this constant.
-constexpr U32 MIN_DRAWCALLS_PER_2ND_LEVEL_COMMAND_BUFFER = 16;
+constexpr U32 kMinDrawcallsPerSecondaryCommandBuffer = 16;
 
-/// SSAO size is rendererSize/SSAO_FRACTION.
-constexpr U32 SSAO_FRACTION = 2;
-
-/// Bloom size is rendererSize/BLOOM_FRACTION.
-constexpr U32 BLOOM_FRACTION = 4;
-
-/// Volumetric size is rendererSize/VOLUMETRIC_FRACTION.
-constexpr U32 VOLUMETRIC_FRACTION = 4;
+/// Bloom size is rendererSize/kBloomFraction.
+constexpr U32 kBloomFraction = 4;
 
 /// Used to calculate the mipmap count of the HiZ map.
-constexpr U32 HIERARCHICAL_Z_MIN_HEIGHT = 80;
+constexpr U32 hHierachicalZMinHeight = 80;
 
-const TextureSubresourceInfo HIZ_HALF_DEPTH(TextureSurfaceInfo(0, 0, 0, 0));
-const TextureSubresourceInfo HIZ_QUARTER_DEPTH(TextureSurfaceInfo(1, 0, 0, 0));
+constexpr TextureSubresourceInfo kHiZHalfSurface(TextureSurfaceInfo(0, 0, 0, 0));
+constexpr TextureSubresourceInfo kHiZQuarterSurface(TextureSurfaceInfo(1, 0, 0, 0));
+
+constexpr U32 kMaxDebugRenderTargets = 2;
 
 /// Computes the 'a' and 'b' numbers for linearizeDepthOptimal (see shaders)
 inline void computeLinearizeDepthOptimal(F32 near, F32 far, F32& a, F32& b)
@@ -66,19 +62,13 @@ inline void computeLinearizeDepthOptimal(F32 near, F32 far, F32& a, F32& b)
 	b = far / near;
 }
 
-constexpr U32 GBUFFER_COLOR_ATTACHMENT_COUNT = 4;
+constexpr U32 kGBufferColorRenderTargetCount = 4;
 
-/// Downsample and blur down to a texture with size DOWNSCALE_BLUR_DOWN_TO
-constexpr U32 DOWNSCALE_BLUR_DOWN_TO = 32;
+/// Downsample and blur down to a texture with size kDownscaleBurDownTo
+constexpr U32 kDownscaleBurDownTo = 32;
 
-/// Use this size of render target for the avg lum calculation.
-constexpr U32 AVERAGE_LUMINANCE_RENDER_TARGET_SIZE = 128;
-
-extern const Array<Format, GBUFFER_COLOR_ATTACHMENT_COUNT> GBUFFER_COLOR_ATTACHMENT_PIXEL_FORMATS;
-
-constexpr Format FORWARD_SHADING_COLOR_ATTACHMENT_PIXEL_FORMAT = Format::R16G16B16A16_SFLOAT;
-
-constexpr Format DBG_COLOR_ATTACHMENT_PIXEL_FORMAT = Format::R8G8B8A8_UNORM;
+inline constexpr Array<Format, kGBufferColorRenderTargetCount> kGBufferColorRenderTargetFormats = {
+	{Format::kR8G8B8A8_Unorm, Format::kR8G8B8A8_Unorm, Format::kA2B10G10R10_Unorm_Pack32, Format::kR16G16_Snorm}};
 
 /// GPU buffers and textures that the clusterer refers to.
 class ClusteredShadingContext
@@ -111,7 +101,7 @@ public:
 class RenderingContext
 {
 public:
-	StackAllocator<U8> m_tempAllocator;
+	StackMemoryPool* m_tempPool = nullptr;
 	RenderQueue* m_renderQueue = nullptr;
 
 	RenderGraphDescription m_renderGraphDescr;
@@ -124,9 +114,9 @@ public:
 
 	ClusteredShadingContext m_clusteredShading;
 
-	RenderingContext(const StackAllocator<U8>& alloc)
-		: m_tempAllocator(alloc)
-		, m_renderGraphDescr(alloc)
+	RenderingContext(StackMemoryPool* pool)
+		: m_tempPool(pool)
+		, m_renderGraphDescr(pool)
 	{
 	}
 
@@ -136,8 +126,9 @@ public:
 };
 
 /// A convenience function to find empty cache entries. Used for various probes.
-template<typename THashMap, typename TCacheEntryArray, typename TAlloc>
-U32 findBestCacheEntry(U64 uuid, Timestamp crntTimestamp, const TCacheEntryArray& entries, THashMap& map, TAlloc alloc)
+template<typename THashMap, typename TCacheEntryArray, typename TMemPool>
+U32 findBestCacheEntry(U64 uuid, Timestamp crntTimestamp, const TCacheEntryArray& entries, THashMap& map,
+					   TMemPool& pool)
 {
 	ANKI_ASSERT(uuid > 0);
 
@@ -154,14 +145,14 @@ U32 findBestCacheEntry(U64 uuid, Timestamp crntTimestamp, const TCacheEntryArray
 		else
 		{
 			// Cache entry is wrong, remove it
-			map.erase(alloc, it);
+			map.erase(pool, it);
 		}
 	}
 
 	// 2nd and 3rd choice, find an empty entry or some entry to re-use
-	U32 emptyCacheEntryIdx = MAX_U32;
-	U32 cacheEntryIdxToKick = MAX_U32;
-	Timestamp cacheEntryIdxToKickMinTimestamp = MAX_TIMESTAMP;
+	U32 emptyCacheEntryIdx = kMaxU32;
+	U32 cacheEntryIdxToKick = kMaxU32;
+	Timestamp cacheEntryIdxToKickMinTimestamp = kMaxTimestamp;
 	for(U32 cacheEntryIdx = 0; cacheEntryIdx < entries.getSize(); ++cacheEntryIdx)
 	{
 		if(entries[cacheEntryIdx].m_uuid == 0)
@@ -180,18 +171,18 @@ U32 findBestCacheEntry(U64 uuid, Timestamp crntTimestamp, const TCacheEntryArray
 	}
 
 	U32 outCacheEntryIdx;
-	if(emptyCacheEntryIdx != MAX_U32)
+	if(emptyCacheEntryIdx != kMaxU32)
 	{
 		outCacheEntryIdx = emptyCacheEntryIdx;
 	}
-	else if(cacheEntryIdxToKick != MAX_U32)
+	else if(cacheEntryIdxToKick != kMaxU32)
 	{
 		outCacheEntryIdx = cacheEntryIdxToKick;
 	}
 	else
 	{
 		// We are out of cache entries. Return OOM
-		outCacheEntryIdx = MAX_U32;
+		outCacheEntryIdx = kMaxU32;
 	}
 
 	return outCacheEntryIdx;

@@ -19,7 +19,7 @@ ConfigSet::~ConfigSet()
 #define ANKI_CONFIG_VAR_STRING(name, defaultValue, description) \
 	if(m_##name.m_value) \
 	{ \
-		m_alloc.getMemoryPool().free(m_##name.m_value); \
+		m_pool.free(m_##name.m_value); \
 	}
 #include <AnKi/Core/AllConfigVars.defs.h>
 
@@ -37,7 +37,7 @@ ConfigSet::~ConfigSet()
 void ConfigSet::init(AllocAlignedCallback allocCb, void* allocCbUserData)
 {
 	ANKI_ASSERT(!isInitialized());
-	m_alloc = HeapAllocator<U8>(allocCb, allocCbUserData);
+	m_pool.init(allocCb, allocCbUserData);
 
 #define ANKI_CONFIG_VAR_NUMERIC(name, defaultValue, minValue, maxValue, description) \
 	ANKI_ASSERT(minValue <= maxValue && defaultValue >= minValue && defaultValue <= maxValue); \
@@ -106,8 +106,8 @@ Error ConfigSet::loadFromFile(CString filename)
 	ANKI_ASSERT(isInitialized());
 
 	ANKI_CORE_LOGI("Loading config file %s", filename.cstr());
-	XmlDocument xml;
-	ANKI_CHECK(xml.loadFile(filename, m_alloc));
+	XmlDocument xml(&m_pool);
+	ANKI_CHECK(xml.loadFile(filename));
 
 	XmlElement rootel;
 	ANKI_CHECK(xml.getChildElement("config", rootel));
@@ -143,7 +143,7 @@ Error ConfigSet::loadFromFile(CString filename)
 		else \
 		{ \
 			ANKI_CORE_LOGE("Wrong value for %s", m_##name.m_name.cstr()); \
-			return Error::USER_DATA; \
+			return Error::kUserData; \
 		} \
 	}
 
@@ -159,7 +159,7 @@ Error ConfigSet::loadFromFile(CString filename)
 #include <AnKi/Core/AllConfigVars.defs.h>
 #undef ANKI_NUMERIC
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error ConfigSet::saveToFile(CString filename) const
@@ -168,9 +168,9 @@ Error ConfigSet::saveToFile(CString filename) const
 	ANKI_CORE_LOGI("Saving config file %s", &filename[0]);
 
 	File file;
-	ANKI_CHECK(file.open(filename, FileOpenFlag::WRITE));
+	ANKI_CHECK(file.open(filename, FileOpenFlag::kWrite));
 
-	ANKI_CHECK(file.writeTextf("%s\n<config>\n", XmlDocument::XML_HEADER.cstr()));
+	ANKI_CHECK(file.writeTextf("%s\n<config>\n", XmlDocument::kXmlHeader.cstr()));
 
 #define ANKI_NUMERIC_UINT(name) \
 	ANKI_CHECK(file.writeTextf("\t<!-- %s -->\n", m_##name.m_description.cstr())); \
@@ -192,7 +192,7 @@ Error ConfigSet::saveToFile(CString filename) const
 #undef ANKI_NUMERIC_UINT
 
 	ANKI_CHECK(file.writeText("</config>\n"));
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error ConfigSet::setFromCommandLineArguments(U32 cmdLineArgsCount, char* cmdLineArgs[])
@@ -209,7 +209,7 @@ Error ConfigSet::setFromCommandLineArguments(U32 cmdLineArgsCount, char* cmdLine
 		if(i >= cmdLineArgsCount)
 		{
 			ANKI_CORE_LOGE("Expecting a command line argument after %s", varName.cstr());
-			return Error::USER_DATA;
+			return Error::kUserData;
 		}
 
 		ANKI_ASSERT(cmdLineArgs[i]);
@@ -254,7 +254,7 @@ Error ConfigSet::setFromCommandLineArguments(U32 cmdLineArgsCount, char* cmdLine
 		}
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

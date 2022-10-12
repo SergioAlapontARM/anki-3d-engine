@@ -8,6 +8,9 @@
 #include <AnKi/Core/ConfigSet.h>
 #include <AnKi/Util/Tracer.h>
 #include <ZLib/contrib/minizip/unzip.h>
+#if ANKI_OS_ANDROID
+#	include <android_native_app_glue.h>
+#endif
 
 namespace anki {
 
@@ -17,8 +20,8 @@ class CResourceFile final : public ResourceFile
 public:
 	File m_file;
 
-	CResourceFile(GenericMemoryPoolAllocator<U8> alloc)
-		: ResourceFile(alloc)
+	CResourceFile(HeapMemoryPool* pool)
+		: ResourceFile(pool)
 	{
 	}
 
@@ -28,7 +31,7 @@ public:
 		return m_file.read(buff, size);
 	}
 
-	Error readAllText(StringAuto& out) override
+	Error readAllText(StringRaii& out) override
 	{
 		ANKI_TRACE_SCOPED_EVENT(RSRC_FILE_READ);
 		return m_file.readAllText(out);
@@ -64,8 +67,8 @@ public:
 	unzFile m_archive = nullptr;
 	PtrSize m_size = 0;
 
-	ZipResourceFile(GenericMemoryPoolAllocator<U8> alloc)
-		: ResourceFile(alloc)
+	ZipResourceFile(HeapMemoryPool* pool)
+		: ResourceFile(pool)
 	{
 	}
 
@@ -87,7 +90,7 @@ public:
 		if(m_archive == nullptr)
 		{
 			ANKI_RESOURCE_LOGE("Failed to open archive");
-			return Error::FILE_ACCESS;
+			return Error::kFileAccess;
 		}
 
 		// Locate archived
@@ -95,14 +98,14 @@ public:
 		if(unzLocateFile(m_archive, &archivedFname[0], caseSensitive) != UNZ_OK)
 		{
 			ANKI_RESOURCE_LOGE("Failed to locate file in archive");
-			return Error::FILE_ACCESS;
+			return Error::kFileAccess;
 		}
 
 		// Open file
 		if(unzOpenCurrentFile(m_archive) != UNZ_OK)
 		{
 			ANKI_RESOURCE_LOGE("unzOpenCurrentFile() failed");
-			return Error::FILE_ACCESS;
+			return Error::kFileAccess;
 		}
 
 		// Get size just in case
@@ -112,7 +115,7 @@ public:
 		m_size = zinfo.uncompressed_size;
 		ANKI_ASSERT(m_size != 0);
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	void close()
@@ -134,13 +137,13 @@ public:
 		if(I64(size) != readSize)
 		{
 			ANKI_RESOURCE_LOGE("File read failed");
-			return Error::FILE_ACCESS;
+			return Error::kFileAccess;
 		}
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 
-	Error readAllText(StringAuto& out) override
+	Error readAllText(StringRaii& out) override
 	{
 		ANKI_ASSERT(m_size);
 		out.create('?', m_size);
@@ -151,25 +154,25 @@ public:
 	{
 		// Assume machine and file have same endianness
 		ANKI_CHECK(read(&u, sizeof(u)));
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	Error readF32(F32& u) override
 	{
 		// Assume machine and file have same endianness
 		ANKI_CHECK(read(&u, sizeof(u)));
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	Error seek(PtrSize offset, FileSeekOrigin origin) override
 	{
 		// Rewind if needed
-		if(origin == FileSeekOrigin::BEGINNING)
+		if(origin == FileSeekOrigin::kBeginning)
 		{
 			if(unzCloseCurrentFile(m_archive) || unzOpenCurrentFile(m_archive))
 			{
 				ANKI_RESOURCE_LOGE("Rewind failed");
-				return Error::FUNCTION_FAILED;
+				return Error::kFunctionFailed;
 			}
 		}
 
@@ -182,7 +185,7 @@ public:
 			offset -= toRead;
 		}
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	PtrSize getSize() const override
@@ -196,30 +199,31 @@ ResourceFilesystem::~ResourceFilesystem()
 {
 	for(Path& p : m_paths)
 	{
-		p.m_files.destroy(m_alloc);
-		p.m_path.destroy(m_alloc);
+		p.m_files.destroy(m_pool);
+		p.m_path.destroy(m_pool);
 	}
 
-	m_paths.destroy(m_alloc);
-	m_cacheDir.destroy(m_alloc);
+	m_paths.destroy(m_pool);
+	m_cacheDir.destroy(m_pool);
 }
 
-Error ResourceFilesystem::init(const ConfigSet& config, const CString& cacheDir)
+Error ResourceFilesystem::init(const ConfigSet& config, AllocAlignedCallback allocCallback, void* allocCallbackUserData)
 {
-	StringListAuto paths(m_alloc);
+	m_pool.init(allocCallback, allocCallbackUserData);
+	StringListRaii paths(&m_pool);
 	paths.splitString(config.getRsrcDataPaths(), ':');
 
-	StringListAuto excludedStrings(m_alloc);
+	StringListRaii excludedStrings(&m_pool);
 	excludedStrings.splitString(config.getRsrcDataPathExcludedStrings(), ':');
 
 	// Workaround the fact that : is used in drives in Windows
 #if ANKI_OS_WINDOWS
-	StringListAuto paths2(m_alloc);
-	StringListAuto::Iterator it = paths.getBegin();
+	StringListRaii paths2(&m_pool);
+	StringListRaii::Iterator it = paths.getBegin();
 	while(it != paths.getEnd())
 	{
 		const String& s = *it;
-		StringListAuto::Iterator it2 = it + 1;
+		StringListRaii::Iterator it2 = it + 1;
 		if(s.getLength() == 1 && (s[0] >= 'a' && s[0] <= 'z') || (s[0] >= 'A' && s[0] <= 'Z') && it2 != paths.getEnd())
 		{
 			paths2.pushBackSprintf("%s:%s", s.cstr(), it2->cstr());
@@ -240,7 +244,7 @@ Error ResourceFilesystem::init(const ConfigSet& config, const CString& cacheDir)
 	if(paths.getSize() < 1)
 	{
 		ANKI_RESOURCE_LOGE("Config option \"RsrcDataPaths\" is empty");
-		return Error::USER_DATA;
+		return Error::kUserData;
 	}
 
 	for(auto& path : paths)
@@ -248,29 +252,25 @@ Error ResourceFilesystem::init(const ConfigSet& config, const CString& cacheDir)
 		ANKI_CHECK(addNewPath(path.toCString(), excludedStrings));
 	}
 
-	addCachePath(cacheDir);
+#if ANKI_OS_ANDROID
+	// Add the external storage
+	ANKI_CHECK(addNewPath(g_androidApp->activity->externalDataPath, excludedStrings));
+#endif
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
-void ResourceFilesystem::addCachePath(const CString& path)
+Error ResourceFilesystem::addNewPath(const CString& filepath, const StringListRaii& excludedStrings)
 {
-	Path p;
-	p.m_path.create(m_alloc, path);
-	p.m_isCache = true;
+	ANKI_RESOURCE_LOGV("Adding new resource path: %s", filepath.cstr());
 
-	m_paths.emplaceBack(m_alloc, std::move(p));
-}
-
-Error ResourceFilesystem::addNewPath(const CString& filepath, const StringListAuto& excludedStrings)
-{
 	U32 fileCount = 0; // Count files manually because it's slower to get that number from the list
-	static const CString extension(".ankizip");
+	constexpr CString extension(".ankizip");
 
 	auto rejectPath = [&](CString p) -> Bool {
 		for(const String& s : excludedStrings)
 		{
-			if(p.find(s) != CString::NPOS)
+			if(p.find(s) != CString::kNpos)
 			{
 				return true;
 			}
@@ -281,7 +281,7 @@ Error ResourceFilesystem::addNewPath(const CString& filepath, const StringListAu
 
 	PtrSize pos;
 	Path path;
-	if((pos = filepath.find(extension)) != CString::NPOS && pos == filepath.getLength() - extension.getLength())
+	if((pos = filepath.find(extension)) != CString::kNpos && pos == filepath.getLength() - extension.getLength())
 	{
 		// It's an archive
 
@@ -290,7 +290,7 @@ Error ResourceFilesystem::addNewPath(const CString& filepath, const StringListAu
 		if(!zfile)
 		{
 			ANKI_RESOURCE_LOGE("Failed to open archive");
-			return Error::FILE_ACCESS;
+			return Error::kFileAccess;
 		}
 
 		// List files
@@ -298,7 +298,7 @@ Error ResourceFilesystem::addNewPath(const CString& filepath, const StringListAu
 		{
 			unzClose(zfile);
 			ANKI_RESOURCE_LOGE("unzGoToFirstFile() failed. Empty archive?");
-			return Error::FILE_ACCESS;
+			return Error::kFileAccess;
 		}
 
 		do
@@ -310,13 +310,13 @@ Error ResourceFilesystem::addNewPath(const CString& filepath, const StringListAu
 			{
 				unzClose(zfile);
 				ANKI_RESOURCE_LOGE("unzGetCurrentFileInfo() failed");
-				return Error::FILE_ACCESS;
+				return Error::kFileAccess;
 			}
 
 			const Bool itsADir = info.uncompressed_size == 0;
 			if(!itsADir && !rejectPath(&filename[0]))
 			{
-				path.m_files.pushBackSprintf(m_alloc, "%s", &filename[0]);
+				path.m_files.pushBackSprintf(m_pool, "%s", &filename[0]);
 				++fileCount;
 			}
 		} while(unzGoToNextFile(zfile) == UNZ_OK);
@@ -329,14 +329,14 @@ Error ResourceFilesystem::addNewPath(const CString& filepath, const StringListAu
 	{
 		// It's simple directory
 
-		ANKI_CHECK(walkDirectoryTree(filepath, m_alloc, [&, this](const CString& fname, Bool isDir) -> Error {
+		ANKI_CHECK(walkDirectoryTree(filepath, m_pool, [&, this](const CString& fname, Bool isDir) -> Error {
 			if(!isDir && !rejectPath(fname))
 			{
-				path.m_files.pushBackSprintf(m_alloc, "%s", fname.cstr());
+				path.m_files.pushBackSprintf(m_pool, "%s", fname.cstr());
 				++fileCount;
 			}
 
-			return Error::NONE;
+			return Error::kNone;
 		}));
 	}
 
@@ -347,8 +347,8 @@ Error ResourceFilesystem::addNewPath(const CString& filepath, const StringListAu
 	}
 	else
 	{
-		path.m_path.sprintf(m_alloc, "%s", &filepath[0]);
-		m_paths.emplaceFront(m_alloc, std::move(path));
+		path.m_path.sprintf(m_pool, "%s", &filepath[0]);
+		m_paths.emplaceFront(m_pool, std::move(path));
 
 		ANKI_RESOURCE_LOGI("Added new data path \"%s\" that contains %u files", &filepath[0], fileCount);
 	}
@@ -361,7 +361,7 @@ Error ResourceFilesystem::addNewPath(const CString& filepath, const StringListAu
 		}
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error ResourceFilesystem::openFile(const ResourceFilename& filename, ResourceFilePtr& filePtr)
@@ -372,7 +372,7 @@ Error ResourceFilesystem::openFile(const ResourceFilename& filename, ResourceFil
 	if(err)
 	{
 		ANKI_RESOURCE_LOGE("Resource file not found: %s", filename.cstr());
-		m_alloc.deleteInstance(rfile);
+		deleteInstance(m_pool, rfile);
 	}
 	else
 	{
@@ -390,56 +390,35 @@ Error ResourceFilesystem::openFileInternal(const ResourceFilename& filename, Res
 	// Search for the fname in reverse order
 	for(const Path& p : m_paths)
 	{
-		// Check if it's cache
-		if(p.m_isCache)
+		for(const String& pfname : p.m_files)
 		{
-			StringAuto newFname(m_alloc);
-			newFname.sprintf("%s/%s", &p.m_path[0], &filename[0]);
-
-			if(fileExists(newFname.toCString()))
+			if(pfname != filename)
 			{
-				// In cache
+				continue;
+			}
 
-				CResourceFile* file = m_alloc.newInstance<CResourceFile>(m_alloc);
+			// Found
+			if(p.m_isArchive)
+			{
+				ZipResourceFile* file = newInstance<ZipResourceFile>(m_pool, &m_pool);
 				rfile = file;
 
-				ANKI_CHECK(file->m_file.open(&newFname[0], FileOpenFlag::READ));
+				ANKI_CHECK(file->open(p.m_path.toCString(), filename));
 			}
-		}
-		else
-		{
-			// In data path or archive
-
-			for(const String& pfname : p.m_files)
+			else
 			{
-				if(pfname != filename)
-				{
-					continue;
-				}
+				StringRaii newFname(&m_pool);
+				newFname.sprintf("%s/%s", &p.m_path[0], &filename[0]);
 
-				// Found
-				if(p.m_isArchive)
-				{
-					ZipResourceFile* file = m_alloc.newInstance<ZipResourceFile>(m_alloc);
-					rfile = file;
-
-					ANKI_CHECK(file->open(p.m_path.toCString(), filename));
-				}
-				else
-				{
-					StringAuto newFname(m_alloc);
-					newFname.sprintf("%s/%s", &p.m_path[0], &filename[0]);
-
-					CResourceFile* file = m_alloc.newInstance<CResourceFile>(m_alloc);
-					rfile = file;
-					ANKI_CHECK(file->m_file.open(newFname, FileOpenFlag::READ));
+				CResourceFile* file = newInstance<CResourceFile>(m_pool, &m_pool);
+				rfile = file;
+				ANKI_CHECK(file->m_file.open(newFname, FileOpenFlag::kRead));
 
 #if 0
-					printf("Opening asset %s\n", &newFname[0]);
+				printf("Opening asset %s\n", &newFname[0]);
 #endif
-				}
 			}
-		} // end if cache
+		}
 
 		if(rfile)
 		{
@@ -450,12 +429,12 @@ Error ResourceFilesystem::openFileInternal(const ResourceFilename& filename, Res
 	// File not found? On Win/Linux try to find it outside the resource dirs. On Android try the archive
 	if(!rfile)
 	{
-		CResourceFile* file = m_alloc.newInstance<CResourceFile>(m_alloc);
+		CResourceFile* file = newInstance<CResourceFile>(m_pool, &m_pool);
 		rfile = file;
 
-		FileOpenFlag openFlags = FileOpenFlag::READ;
+		FileOpenFlag openFlags = FileOpenFlag::kRead;
 #if ANKI_OS_ANDROID
-		openFlags |= FileOpenFlag::SPECIAL;
+		openFlags |= FileOpenFlag::kSpecial;
 #endif
 		ANKI_CHECK(file->m_file.open(filename, openFlags));
 
@@ -466,7 +445,7 @@ Error ResourceFilesystem::openFileInternal(const ResourceFilename& filename, Res
 #endif
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

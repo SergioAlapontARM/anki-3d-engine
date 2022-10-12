@@ -9,22 +9,22 @@ namespace anki {
 
 Error NativeWindow::newInstance(const NativeWindowInitInfo& initInfo, NativeWindow*& nativeWindow)
 {
-	HeapAllocator<U8> alloc(initInfo.m_allocCallback, initInfo.m_allocCallbackUserData, "NativeWindow");
-	NativeWindowAndroid* andwin = alloc.newInstance<NativeWindowAndroid>();
-
-	andwin->m_alloc = alloc;
+	NativeWindowAndroid* andwin = static_cast<NativeWindowAndroid*>(initInfo.m_allocCallback(
+		initInfo.m_allocCallbackUserData, nullptr, sizeof(NativeWindowAndroid), alignof(NativeWindowAndroid)));
+	callConstructor(*andwin);
 
 	const Error err = andwin->init(initInfo);
 	if(err)
 	{
-		alloc.deleteInstance(andwin);
+		callDestructor(*andwin);
+		initInfo.m_allocCallback(initInfo.m_allocCallbackUserData, andwin, 0, 0);
 		nativeWindow = nullptr;
 		return err;
 	}
 	else
 	{
 		nativeWindow = andwin;
-		return Error::NONE;
+		return Error::kNone;
 	}
 }
 
@@ -33,12 +33,14 @@ void NativeWindow::deleteInstance(NativeWindow* window)
 	if(window)
 	{
 		NativeWindowAndroid* self = static_cast<NativeWindowAndroid*>(window);
-		HeapAllocator<U8> alloc = self->m_alloc;
-		alloc.deleteInstance(self);
+		AllocAlignedCallback callback = self->m_pool.getAllocationCallback();
+		void* userData = self->m_pool.getAllocationCallbackUserData();
+		callDestructor(*self);
+		callback(userData, self, 0, 0);
 	}
 }
 
-void NativeWindow::setWindowTitle(CString title)
+void NativeWindow::setWindowTitle([[maybe_unused]] CString title)
 {
 	// Nothing
 }
@@ -67,9 +69,11 @@ NativeWindowAndroid::~NativeWindowAndroid()
 	m_nativeWindow = nullptr;
 }
 
-Error NativeWindowAndroid::init(const NativeWindowInitInfo& init)
+Error NativeWindowAndroid::init([[maybe_unused]] const NativeWindowInitInfo& init)
 {
 	ANKI_CORE_LOGI("Initializing Android window");
+
+	m_pool.init(init.m_allocCallback, init.m_allocCallbackUserData);
 
 	// Loop until the window is ready
 	while(g_androidApp->window == nullptr)
@@ -94,7 +98,7 @@ Error NativeWindowAndroid::init(const NativeWindowInitInfo& init)
 	m_width = ANativeWindow_getWidth(g_androidApp->window);
 	m_height = ANativeWindow_getHeight(g_androidApp->window);
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

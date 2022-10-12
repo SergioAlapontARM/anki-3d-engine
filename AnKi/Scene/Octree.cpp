@@ -41,10 +41,10 @@ public:
 	Octree* m_octree = nullptr;
 	SpinLock m_lock;
 	Array<Plane, 6> m_frustumPlanes;
-	U32 m_testId = MAX_U32;
+	U32 m_testId = kMaxU32;
 	OctreeNodeVisibilityTestCallback m_testCallback = nullptr;
 	void* m_testCallbackUserData = nullptr;
-	DynamicArrayAuto<void*>* m_out = nullptr;
+	DynamicArrayRaii<void*>* m_out = nullptr;
 };
 
 class Octree::GatherParallelTaskCtx
@@ -187,48 +187,48 @@ void Octree::placeRecursive(const Aabb& volume, OctreePlaceable* placeable, Leaf
 	if(vMin.x() > center.x())
 	{
 		// Only right
-		maskX = LeafMask::RIGHT;
+		maskX = LeafMask::kRight;
 	}
 	else if(vMax.x() < center.x())
 	{
 		// Only left
-		maskX = LeafMask::LEFT;
+		maskX = LeafMask::kLeft;
 	}
 	else
 	{
-		maskX = LeafMask::ALL;
+		maskX = LeafMask::kAll;
 	}
 
 	LeafMask maskY;
 	if(vMin.y() > center.y())
 	{
 		// Only top
-		maskY = LeafMask::TOP;
+		maskY = LeafMask::kTop;
 	}
 	else if(vMax.y() < center.y())
 	{
 		// Only bottom
-		maskY = LeafMask::BOTTOM;
+		maskY = LeafMask::kBottom;
 	}
 	else
 	{
-		maskY = LeafMask::ALL;
+		maskY = LeafMask::kAll;
 	}
 
 	LeafMask maskZ;
 	if(vMin.z() > center.z())
 	{
 		// Only front
-		maskZ = LeafMask::FRONT;
+		maskZ = LeafMask::kFront;
 	}
 	else if(vMax.z() < center.z())
 	{
 		// Only back
-		maskZ = LeafMask::BACK;
+		maskZ = LeafMask::kBack;
 	}
 	else
 	{
-		maskZ = LeafMask::ALL;
+		maskZ = LeafMask::kAll;
 	}
 
 	const LeafMask maskUnion = maskX & maskY & maskZ;
@@ -270,7 +270,7 @@ void Octree::computeChildAabb(LeafMask child, const Vec3& parentAabbMin, const V
 	const Vec3& M = parentAabbMax;
 	const Vec3& c = parentAabbCenter;
 
-	if(!!(child & LeafMask::RIGHT))
+	if(!!(child & LeafMask::kRight))
 	{
 		// Right
 		childAabbMin.x() = c.x();
@@ -283,7 +283,7 @@ void Octree::computeChildAabb(LeafMask child, const Vec3& parentAabbMin, const V
 		childAabbMax.x() = c.x();
 	}
 
-	if(!!(child & LeafMask::TOP))
+	if(!!(child & LeafMask::kTop))
 	{
 		// Top
 		childAabbMin.y() = c.y();
@@ -296,7 +296,7 @@ void Octree::computeChildAabb(LeafMask child, const Vec3& parentAabbMin, const V
 		childAabbMax.y() = c.y();
 	}
 
-	if(!!(child & LeafMask::FRONT))
+	if(!!(child & LeafMask::kFront))
 	{
 		// Front
 		childAabbMin.z() = c.z();
@@ -351,7 +351,7 @@ void Octree::removeInternal(OctreePlaceable& placeable)
 
 void Octree::gatherVisibleRecursive(const Plane frustumPlanes[6], U32 testId,
 									OctreeNodeVisibilityTestCallback testCallback, void* testCallbackUserData,
-									Leaf* leaf, DynamicArrayAuto<void*>& out)
+									Leaf* leaf, DynamicArrayRaii<void*>& out)
 {
 	ANKI_ASSERT(leaf);
 
@@ -459,7 +459,7 @@ void Octree::debugDrawRecursive(const Leaf& leaf, OctreeDebugDrawer& drawer) con
 
 void Octree::gatherVisibleParallel(const Plane frustumPlanes[6], U32 testId,
 								   OctreeNodeVisibilityTestCallback testCallback, void* testCallbackUserData,
-								   DynamicArrayAuto<void*>* out, ThreadHive& hive, ThreadHiveSemaphore* waitSemaphore,
+								   DynamicArrayRaii<void*>* out, ThreadHive& hive, ThreadHiveSemaphore* waitSemaphore,
 								   ThreadHiveSemaphore*& signalSemaphore)
 {
 	ANKI_ASSERT(out && frustumPlanes);
@@ -507,7 +507,7 @@ void Octree::gatherVisibleParallelTask([[maybe_unused]] U32 threadId, ThreadHive
 	GatherParallelCtx& ctx = *taskCtx.m_ctx;
 
 	Leaf* const leaf = taskCtx.m_leaf;
-	DynamicArrayAuto<void*>& out = *ctx.m_out;
+	DynamicArrayRaii<void*>& out = *ctx.m_out;
 	OctreeNodeVisibilityTestCallback testCallback = ctx.m_testCallback;
 	void* testCallbackUserData = ctx.m_testCallbackUserData;
 	const U32 testId = ctx.m_testId;

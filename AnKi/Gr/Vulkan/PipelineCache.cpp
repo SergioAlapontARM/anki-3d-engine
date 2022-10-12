@@ -11,18 +11,18 @@
 namespace anki {
 
 Error PipelineCache::init(VkDevice dev, VkPhysicalDevice pdev, CString cacheDir, const ConfigSet& cfg,
-						  GrAllocator<U8> alloc)
+						  HeapMemoryPool& pool)
 {
 	ANKI_ASSERT(cacheDir && dev && pdev);
 	m_dumpSize = cfg.getGrDiskShaderCacheMaxSize();
-	m_dumpFilename.sprintf(alloc, "%s/VkPipelineCache", &cacheDir[0]);
+	m_dumpFilename.sprintf(pool, "%s/VkPipelineCache", &cacheDir[0]);
 
 	// Try read the pipeline cache file.
-	DynamicArrayAuto<U8, PtrSize> diskDump(alloc);
+	DynamicArrayRaii<U8, PtrSize> diskDump(&pool);
 	if(fileExists(m_dumpFilename.toCString()))
 	{
 		File file;
-		ANKI_CHECK(file.open(m_dumpFilename.toCString(), FileOpenFlag::BINARY | FileOpenFlag::READ));
+		ANKI_CHECK(file.open(m_dumpFilename.toCString(), FileOpenFlag::kBinary | FileOpenFlag::kRead));
 
 		const PtrSize diskDumpSize = file.getSize();
 		if(diskDumpSize <= sizeof(U8) * VK_UUID_SIZE)
@@ -66,21 +66,21 @@ Error PipelineCache::init(VkDevice dev, VkPhysicalDevice pdev, CString cacheDir,
 
 	ANKI_VK_CHECK(vkCreatePipelineCache(dev, &ci, nullptr, &m_cacheHandle));
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
-void PipelineCache::destroy(VkDevice dev, VkPhysicalDevice pdev, GrAllocator<U8> alloc)
+void PipelineCache::destroy(VkDevice dev, VkPhysicalDevice pdev, HeapMemoryPool& pool)
 {
-	const Error err = destroyInternal(dev, pdev, alloc);
+	const Error err = destroyInternal(dev, pdev, pool);
 	if(err)
 	{
 		ANKI_VK_LOGE("An error occurred while storing the pipeline cache to disk. Will ignore");
 	}
 
-	m_dumpFilename.destroy(alloc);
+	m_dumpFilename.destroy(pool);
 }
 
-Error PipelineCache::destroyInternal(VkDevice dev, VkPhysicalDevice pdev, GrAllocator<U8> alloc)
+Error PipelineCache::destroyInternal(VkDevice dev, VkPhysicalDevice pdev, HeapMemoryPool& pool)
 {
 	if(m_cacheHandle)
 	{
@@ -94,13 +94,13 @@ Error PipelineCache::destroyInternal(VkDevice dev, VkPhysicalDevice pdev, GrAllo
 		if(size > 0)
 		{
 			// Read cache
-			DynamicArrayAuto<U8, PtrSize> cacheData(alloc);
+			DynamicArrayRaii<U8, PtrSize> cacheData(&pool);
 			cacheData.create(size);
 			ANKI_VK_CHECK(vkGetPipelineCacheData(dev, m_cacheHandle, &size, &cacheData[0]));
 
 			// Write file
 			File file;
-			ANKI_CHECK(file.open(&m_dumpFilename[0], FileOpenFlag::BINARY | FileOpenFlag::WRITE));
+			ANKI_CHECK(file.open(&m_dumpFilename[0], FileOpenFlag::kBinary | FileOpenFlag::kWrite));
 
 			VkPhysicalDeviceProperties props;
 			vkGetPhysicalDeviceProperties(pdev, &props);
@@ -116,7 +116,7 @@ Error PipelineCache::destroyInternal(VkDevice dev, VkPhysicalDevice pdev, GrAllo
 		m_cacheHandle = VK_NULL_HANDLE;
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

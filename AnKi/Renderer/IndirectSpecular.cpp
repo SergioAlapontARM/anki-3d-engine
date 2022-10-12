@@ -40,15 +40,15 @@ Error IndirectSpecular::initInternal()
 	ANKI_CHECK(getResourceManager().loadResource("EngineAssets/BlueNoise_Rgba8_64x64.png", m_noiseImage));
 
 	// Create RT
-	TextureUsageBit usage = TextureUsageBit::ALL_SAMPLED;
+	TextureUsageBit usage = TextureUsageBit::kAllSampled;
 
-	usage |= (preferCompute) ? TextureUsageBit::IMAGE_COMPUTE_WRITE : TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+	usage |= (preferCompute) ? TextureUsageBit::kImageComputeWrite : TextureUsageBit::kFramebufferWrite;
 
 	TextureInitInfo texInit =
 		m_r->create2DRenderTargetInitInfo(size.x(), size.y(), m_r->getHdrFormat(), usage, "SSR #1");
-	m_rts[0] = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::ALL_SAMPLED);
+	m_rts[0] = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::kAllSampled);
 	texInit.setName("SSR #2");
-	m_rts[1] = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::ALL_SAMPLED);
+	m_rts[1] = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::kAllSampled);
 
 	m_fbDescr.m_colorAttachmentCount = 1;
 	m_fbDescr.bake();
@@ -66,7 +66,7 @@ Error IndirectSpecular::initInternal()
 	m_prog->getOrCreateVariant(variantInit, variant);
 	m_grProg = variant->getProgram();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void IndirectSpecular::populateRenderGraph(RenderingContext& ctx)
@@ -86,8 +86,8 @@ void IndirectSpecular::populateRenderGraph(RenderingContext& ctx)
 	}
 	else
 	{
-		m_runCtx.m_rts[0] = rgraph.importRenderTarget(m_rts[readRtIdx], TextureUsageBit::ALL_SAMPLED);
-		m_runCtx.m_rts[1] = rgraph.importRenderTarget(m_rts[writeRtIdx], TextureUsageBit::ALL_SAMPLED);
+		m_runCtx.m_rts[0] = rgraph.importRenderTarget(m_rts[readRtIdx], TextureUsageBit::kAllSampled);
+		m_runCtx.m_rts[1] = rgraph.importRenderTarget(m_rts[writeRtIdx], TextureUsageBit::kAllSampled);
 		m_rtsImportedOnce = true;
 	}
 
@@ -120,41 +120,41 @@ void IndirectSpecular::populateRenderGraph(RenderingContext& ctx)
 			ComputeRenderPassDescription& pass = rgraph.newComputeRenderPass("SSR");
 
 			ppass = &pass;
-			readUsage = TextureUsageBit::SAMPLED_COMPUTE;
-			writeUsage = TextureUsageBit::IMAGE_COMPUTE_WRITE;
+			readUsage = TextureUsageBit::kSampledCompute;
+			writeUsage = TextureUsageBit::kImageComputeWrite;
 		}
 		else
 		{
 			GraphicsRenderPassDescription& pass = rgraph.newGraphicsRenderPass("SSR");
-			pass.setFramebufferInfo(m_fbDescr, {m_runCtx.m_rts[WRITE]}, {},
+			pass.setFramebufferInfo(m_fbDescr, {m_runCtx.m_rts[kWrite]}, {},
 									(enableVrs) ? m_r->getVrsSriGeneration().getDownscaledSriRt()
 												: RenderTargetHandle());
 
 			ppass = &pass;
-			readUsage = TextureUsageBit::SAMPLED_FRAGMENT;
-			writeUsage = TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+			readUsage = TextureUsageBit::kSampledFragment;
+			writeUsage = TextureUsageBit::kFramebufferWrite;
 
 			if(enableVrs)
 			{
-				ppass->newDependency(RenderPassDependency(m_r->getVrsSriGeneration().getDownscaledSriRt(),
-														  TextureUsageBit::FRAMEBUFFER_SHADING_RATE));
+				ppass->newTextureDependency(m_r->getVrsSriGeneration().getDownscaledSriRt(),
+											TextureUsageBit::kFramebufferShadingRate);
 			}
 		}
 
-		ppass->newDependency(RenderPassDependency(m_runCtx.m_rts[WRITE], writeUsage));
-		ppass->newDependency(RenderPassDependency(m_runCtx.m_rts[READ], readUsage));
-		ppass->newDependency(RenderPassDependency(m_r->getGBuffer().getColorRt(1), readUsage));
-		ppass->newDependency(RenderPassDependency(m_r->getGBuffer().getColorRt(2), readUsage));
+		ppass->newTextureDependency(m_runCtx.m_rts[kWrite], writeUsage);
+		ppass->newTextureDependency(m_runCtx.m_rts[kRead], readUsage);
+		ppass->newTextureDependency(m_r->getGBuffer().getColorRt(1), readUsage);
+		ppass->newTextureDependency(m_r->getGBuffer().getColorRt(2), readUsage);
 
 		TextureSubresourceInfo hizSubresource;
 		hizSubresource.m_mipmapCount =
 			min(getConfig().getRSsrDepthLod() + 1, m_r->getDepthDownscale().getMipmapCount());
-		ppass->newDependency(RenderPassDependency(m_r->getDepthDownscale().getHiZRt(), readUsage, hizSubresource));
+		ppass->newTextureDependency(m_r->getDepthDownscale().getHiZRt(), readUsage, hizSubresource);
 
-		ppass->newDependency(RenderPassDependency(m_r->getProbeReflections().getReflectionRt(), readUsage));
+		ppass->newTextureDependency(m_r->getProbeReflections().getReflectionRt(), readUsage);
 
-		ppass->newDependency(RenderPassDependency(m_r->getMotionVectors().getMotionVectorsRt(), readUsage));
-		ppass->newDependency(RenderPassDependency(m_r->getMotionVectors().getHistoryLengthRt(), readUsage));
+		ppass->newTextureDependency(m_r->getMotionVectors().getMotionVectorsRt(), readUsage);
+		ppass->newTextureDependency(m_r->getMotionVectors().getHistoryLengthRt(), readUsage);
 
 		ppass->setWork([this, &ctx](RenderPassWorkContext& rgraphCtx) {
 			run(ctx, rgraphCtx);
@@ -173,7 +173,7 @@ void IndirectSpecular::run(const RenderingContext& ctx, RenderPassWorkContext& r
 	SsrUniforms* unis = allocateAndBindUniforms<SsrUniforms*>(sizeof(SsrUniforms), cmdb, 0, 0);
 	unis->m_depthBufferSize = m_r->getInternalResolution() >> (depthLod + 1);
 	unis->m_framebufferSize = UVec2(m_r->getInternalResolution().x(), m_r->getInternalResolution().y()) / 2;
-	unis->m_frameCount = m_r->getFrameCount() & MAX_U32;
+	unis->m_frameCount = m_r->getFrameCount() & kMaxU32;
 	unis->m_depthMipCount = m_r->getDepthDownscale().getMipmapCount();
 	unis->m_maxSteps = getConfig().getRSsrMaxSteps();
 	unis->m_lightBufferMipCount = m_r->getDownscaleBlur().getMipmapCount();
@@ -197,7 +197,7 @@ void IndirectSpecular::run(const RenderingContext& ctx, RenderPassWorkContext& r
 
 	rgraphCtx.bindColorTexture(0, 5, m_r->getDownscaleBlur().getRt());
 
-	rgraphCtx.bindColorTexture(0, 6, m_runCtx.m_rts[READ]);
+	rgraphCtx.bindColorTexture(0, 6, m_runCtx.m_rts[kRead]);
 	rgraphCtx.bindColorTexture(0, 7, m_r->getMotionVectors().getMotionVectorsRt());
 	rgraphCtx.bindColorTexture(0, 8, m_r->getMotionVectors().getHistoryLengthRt());
 
@@ -212,7 +212,7 @@ void IndirectSpecular::run(const RenderingContext& ctx, RenderPassWorkContext& r
 
 	if(getConfig().getRPreferCompute())
 	{
-		rgraphCtx.bindImage(0, 15, m_runCtx.m_rts[WRITE], TextureSubresourceInfo());
+		rgraphCtx.bindImage(0, 15, m_runCtx.m_rts[kWrite], TextureSubresourceInfo());
 
 		dispatchPPCompute(cmdb, 8, 8, m_r->getInternalResolution().x() / 2, m_r->getInternalResolution().y() / 2);
 	}
@@ -220,16 +220,16 @@ void IndirectSpecular::run(const RenderingContext& ctx, RenderPassWorkContext& r
 	{
 		cmdb->setViewport(0, 0, m_r->getInternalResolution().x() / 2, m_r->getInternalResolution().y() / 2);
 
-		cmdb->drawArrays(PrimitiveTopology::TRIANGLES, 3);
+		cmdb->drawArrays(PrimitiveTopology::kTriangles, 3);
 	}
 }
 
-void IndirectSpecular::getDebugRenderTarget(CString rtName, RenderTargetHandle& handle,
+void IndirectSpecular::getDebugRenderTarget(CString rtName, Array<RenderTargetHandle, kMaxDebugRenderTargets>& handles,
 											[[maybe_unused]] ShaderProgramPtr& optionalShaderProgram) const
 {
 	if(rtName == "SSR")
 	{
-		handle = m_runCtx.m_rts[WRITE];
+		handles[0] = m_runCtx.m_rts[kWrite];
 	}
 }
 

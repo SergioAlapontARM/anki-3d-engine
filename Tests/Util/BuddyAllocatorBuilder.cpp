@@ -18,11 +18,11 @@ static int memvcmp(const void* memory, U8 val, PtrSize size)
 
 ANKI_TEST(Util, BuddyAllocatorBuilder)
 {
-	HeapAllocator<U8> alloc(allocAligned, nullptr);
+	HeapMemoryPool pool(allocAligned, nullptr);
 
 	// Simple
 	{
-		BuddyAllocatorBuilder<32, Mutex> buddy(alloc, 32);
+		BuddyAllocatorBuilder<32, Mutex> buddy(&pool, 32);
 
 		Array<U32, 2> addr;
 		const Array<U32, 2> sizes = {58, 198010775};
@@ -43,13 +43,13 @@ ANKI_TEST(Util, BuddyAllocatorBuilder)
 
 	// Fuzzy with alignment
 	{
-		BuddyAllocatorBuilder<32, Mutex> buddy(alloc, 32);
+		BuddyAllocatorBuilder<32, Mutex> buddy(&pool, 32);
 		std::vector<std::tuple<U32, U32, U32, U8>> allocations;
 
-		U8* backingMemory = static_cast<U8*>(malloc(MAX_U32));
-		for(PtrSize i = 0; i < MAX_U32; ++i)
+		U8* backingMemory = static_cast<U8*>(malloc(kMaxU32));
+		for(PtrSize i = 0; i < kMaxU32; ++i)
 		{
-			backingMemory[i] = i % MAX_U8;
+			backingMemory[i] = i % kMaxU8;
 		}
 
 		for(U32 it = 0; it < 10000; ++it)
@@ -64,7 +64,7 @@ ANKI_TEST(Util, BuddyAllocatorBuilder)
 				// printf("al %u %u\n", size, alignment);
 				if(success)
 				{
-					const U8 bufferValue = getRandom() % MAX_U8;
+					const U8 bufferValue = getRandom() % kMaxU8;
 					memset(backingMemory + addr, bufferValue, size);
 					allocations.push_back({addr, size, alignment, bufferValue});
 				}

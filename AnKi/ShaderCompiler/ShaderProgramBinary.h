@@ -9,7 +9,6 @@
 
 #include <AnKi/ShaderCompiler/Common.h>
 #include <AnKi/ShaderCompiler/ShaderProgramBinaryExtra.h>
-#include <AnKi/Gr/Enums.h>
 
 namespace anki {
 
@@ -17,8 +16,8 @@ namespace anki {
 class ShaderProgramBinaryVariable
 {
 public:
-	Array<char, MAX_SHADER_BINARY_NAME_LENGTH + 1> m_name = {};
-	ShaderVariableDataType m_type = ShaderVariableDataType::NONE;
+	Array<char, kMaxShaderBinaryNameLength + 1> m_name = {};
+	ShaderVariableDataType m_type = ShaderVariableDataType::kNone;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -45,7 +44,7 @@ class ShaderProgramBinaryVariableInstance
 {
 public:
 	/// Points to ShaderProgramBinaryBlock::m_variables.
-	U32 m_index = MAX_U32;
+	U32 m_index = kMaxU32;
 
 	ShaderVariableBlockInfo m_blockInfo;
 
@@ -73,10 +72,10 @@ public:
 class ShaderProgramBinaryBlock
 {
 public:
-	Array<char, MAX_SHADER_BINARY_NAME_LENGTH + 1> m_name = {};
+	Array<char, kMaxShaderBinaryNameLength + 1> m_name = {};
 	WeakArray<ShaderProgramBinaryVariable> m_variables;
-	U32 m_binding = MAX_U32;
-	U32 m_set = MAX_U32;
+	U32 m_binding = kMaxU32;
+	U32 m_set = kMaxU32;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -105,10 +104,10 @@ class ShaderProgramBinaryBlockInstance
 {
 public:
 	/// Points to ShaderProgramBinary::m_uniformBlocks or m_storageBlocks.
-	U32 m_index = MAX_U32;
+	U32 m_index = kMaxU32;
 
 	WeakArray<ShaderProgramBinaryVariableInstance> m_variableInstances;
-	U32 m_size = MAX_U32;
+	U32 m_size = kMaxU32;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -136,10 +135,10 @@ public:
 class ShaderProgramBinaryOpaque
 {
 public:
-	Array<char, MAX_SHADER_BINARY_NAME_LENGTH + 1> m_name = {};
-	ShaderVariableDataType m_type = ShaderVariableDataType::NONE;
-	U32 m_binding = MAX_U32;
-	U32 m_set = MAX_U32;
+	Array<char, kMaxShaderBinaryNameLength + 1> m_name = {};
+	ShaderVariableDataType m_type = ShaderVariableDataType::kNone;
+	U32 m_binding = kMaxU32;
+	U32 m_set = kMaxU32;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -168,9 +167,9 @@ class ShaderProgramBinaryOpaqueInstance
 {
 public:
 	/// Points to ShaderProgramBinary::m_opaques.
-	U32 m_index = MAX_U32;
+	U32 m_index = kMaxU32;
 
-	U32 m_arraySize = MAX_U32;
+	U32 m_arraySize = kMaxU32;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -196,9 +195,9 @@ public:
 class ShaderProgramBinaryConstant
 {
 public:
-	Array<char, MAX_SHADER_BINARY_NAME_LENGTH + 1> m_name;
-	ShaderVariableDataType m_type = ShaderVariableDataType::NONE;
-	U32 m_constantId = MAX_U32;
+	Array<char, kMaxShaderBinaryNameLength + 1> m_name;
+	ShaderVariableDataType m_type = ShaderVariableDataType::kNone;
+	U32 m_constantId = kMaxU32;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -226,7 +225,7 @@ class ShaderProgramBinaryConstantInstance
 {
 public:
 	/// Points to ShaderProgramBinary::m_constants.
-	U32 m_index = MAX_U32;
+	U32 m_index = kMaxU32;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -251,16 +250,16 @@ public:
 class ShaderProgramBinaryStructMember
 {
 public:
-	Array<char, MAX_SHADER_BINARY_NAME_LENGTH + 1> m_name = {};
+	Array<char, kMaxShaderBinaryNameLength + 1> m_name = {};
 
-	/// If the value is ShaderVariableDataType::NONE then it's a struct.
-	ShaderVariableDataType m_type = ShaderVariableDataType::NONE;
+	/// If the value is ShaderVariableDataType::kNone then it's a struct.
+	ShaderVariableDataType m_type = ShaderVariableDataType::kNone;
 
 	/// If the type is another struct then this points to ShaderProgramBinary::m_structs.
-	U32 m_structIndex = MAX_U32;
+	U32 m_structIndex = kMaxU32;
 
 	/// It points to a ShaderProgramBinary::m_mutators. This mutator will turn on or off this member.
-	U32 m_dependentMutator = MAX_U32;
+	U32 m_dependentMutator = kMaxU32;
 
 	/// The value of the m_dependentMutator.
 	MutatorValue m_dependentMutatorValue = 0;
@@ -295,12 +294,12 @@ class ShaderProgramBinaryStructMemberInstance
 {
 public:
 	/// Points to ShaderProgramBinary::m_structs.
-	U32 m_index = MAX_U32;
+	U32 m_index = kMaxU32;
 
 	/// The offset of the member in the struct.
-	U32 m_offset = MAX_U32;
+	U32 m_offset = kMaxU32;
 
-	U32 m_arraySize = MAX_U32;
+	U32 m_arraySize = kMaxU32;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -327,7 +326,7 @@ public:
 class ShaderProgramBinaryStruct
 {
 public:
-	Array<char, MAX_SHADER_BINARY_NAME_LENGTH + 1> m_name;
+	Array<char, kMaxShaderBinaryNameLength + 1> m_name;
 	WeakArray<ShaderProgramBinaryStructMember> m_members;
 
 	template<typename TSerializer, typename TClass>
@@ -358,7 +357,7 @@ public:
 	U32 m_index;
 
 	WeakArray<ShaderProgramBinaryStructMemberInstance> m_memberInstances;
-	U32 m_size = MAX_U32;
+	U32 m_size = kMaxU32;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -386,8 +385,8 @@ public:
 class ShaderProgramBinaryVariant
 {
 public:
-	/// Index in ShaderProgramBinary::m_codeBlocks. MAX_U32 means no shader.
-	Array<U32, U32(ShaderType::COUNT)> m_codeBlockIndices = {};
+	/// Index in ShaderProgramBinary::m_codeBlocks. kMaxU32 means no shader.
+	Array<U32, U32(ShaderType::kCount)> m_codeBlockIndices = {};
 
 	WeakArray<ShaderProgramBinaryBlockInstance> m_uniformBlocks;
 	WeakArray<ShaderProgramBinaryBlockInstance> m_storageBlocks;
@@ -395,10 +394,10 @@ public:
 	WeakArray<ShaderProgramBinaryOpaqueInstance> m_opaques;
 	WeakArray<ShaderProgramBinaryConstantInstance> m_constants;
 	WeakArray<ShaderProgramBinaryStructInstance> m_structs;
-	Array<U32, 3> m_workgroupSizes = {MAX_U32, MAX_U32, MAX_U32};
+	Array<U32, 3> m_workgroupSizes = {kMaxU32, kMaxU32, kMaxU32};
 
 	/// Indices to ShaderProgramBinary::m_constants.
-	Array<U32, 3> m_workgroupSizesConstants = {MAX_U32, MAX_U32, MAX_U32};
+	Array<U32, 3> m_workgroupSizesConstants = {kMaxU32, kMaxU32, kMaxU32};
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)
@@ -435,7 +434,7 @@ public:
 class ShaderProgramBinaryMutator
 {
 public:
-	Array<char, MAX_SHADER_BINARY_NAME_LENGTH + 1> m_name = {};
+	Array<char, kMaxShaderBinaryNameLength + 1> m_name = {};
 	WeakArray<MutatorValue> m_values;
 
 	template<typename TSerializer, typename TClass>
@@ -492,7 +491,7 @@ public:
 	WeakArray<MutatorValue> m_values;
 
 	/// Points to ShaderProgramBinary::m_variants.
-	U32 m_variantIndex = MAX_U32;
+	U32 m_variantIndex = kMaxU32;
 
 	/// Mutation hash.
 	U64 m_hash = 0;
@@ -536,13 +535,13 @@ public:
 	WeakArray<ShaderProgramBinaryOpaque> m_opaques;
 	WeakArray<ShaderProgramBinaryConstant> m_constants;
 	WeakArray<ShaderProgramBinaryStruct> m_structs;
-	ShaderTypeBit m_presentShaderTypes = ShaderTypeBit::NONE;
+	ShaderTypeBit m_presentShaderTypes = ShaderTypeBit::kNone;
 
 	/// The name of the shader library. Mainly for RT shaders.
 	Array<char, 64> m_libraryName = {};
 
 	/// An arbitary number indicating the type of the ray.
-	U32 m_rayType = MAX_U32;
+	U32 m_rayType = kMaxU32;
 
 	template<typename TSerializer, typename TClass>
 	static void serializeCommon(TSerializer& s, TClass self)

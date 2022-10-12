@@ -11,15 +11,15 @@ namespace anki {
 static VulkanQueueType getQueueTypeFromCommandBufferFlags(CommandBufferFlag flags,
 														  const VulkanQueueFamilies& queueFamilies)
 {
-	ANKI_ASSERT(!!(flags & CommandBufferFlag::GENERAL_WORK) ^ !!(flags & CommandBufferFlag::COMPUTE_WORK));
-	if(!(flags & CommandBufferFlag::GENERAL_WORK) && queueFamilies[VulkanQueueType::COMPUTE] != MAX_U32)
+	ANKI_ASSERT(!!(flags & CommandBufferFlag::kGeneralWork) ^ !!(flags & CommandBufferFlag::kComputeWork));
+	if(!(flags & CommandBufferFlag::kGeneralWork) && queueFamilies[VulkanQueueType::kCompute] != kMaxU32)
 	{
-		return VulkanQueueType::COMPUTE;
+		return VulkanQueueType::kCompute;
 	}
 	else
 	{
-		ANKI_ASSERT(queueFamilies[VulkanQueueType::GENERAL] != MAX_U32);
-		return VulkanQueueType::GENERAL;
+		ANKI_ASSERT(queueFamilies[VulkanQueueType::kGeneral] != kMaxU32);
+		return VulkanQueueType::kGeneral;
 	}
 }
 
@@ -46,17 +46,17 @@ void MicroCommandBuffer::reset()
 
 	for(GrObjectType type : EnumIterable<GrObjectType>())
 	{
-		m_objectRefs[type].destroy(m_fastAlloc);
+		m_objectRefs[type].destroy(m_fastPool);
 	}
 
-	m_fastAlloc.getMemoryPool().reset();
+	m_fastPool.reset();
 }
 
 Error CommandBufferThreadAllocator::init()
 {
 	for(VulkanQueueType qtype : EnumIterable<VulkanQueueType>())
 	{
-		if(m_factory->m_queueFamilies[qtype] == MAX_U32)
+		if(m_factory->m_queueFamilies[qtype] == kMaxU32)
 		{
 			continue;
 		}
@@ -77,12 +77,12 @@ Error CommandBufferThreadAllocator::init()
 			{
 				MicroObjectRecycler<MicroCommandBuffer>& recycler = m_recyclers[secondLevel][smallBatch][queue];
 
-				recycler.init(m_factory->m_alloc);
+				recycler.init(m_factory->m_pool);
 			}
 		}
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void CommandBufferThreadAllocator::destroy()
@@ -110,10 +110,10 @@ void CommandBufferThreadAllocator::destroy()
 
 Error CommandBufferThreadAllocator::newCommandBuffer(CommandBufferFlag cmdbFlags, MicroCommandBufferPtr& outPtr)
 {
-	ANKI_ASSERT(!!(cmdbFlags & CommandBufferFlag::COMPUTE_WORK) ^ !!(cmdbFlags & CommandBufferFlag::GENERAL_WORK));
+	ANKI_ASSERT(!!(cmdbFlags & CommandBufferFlag::kComputeWork) ^ !!(cmdbFlags & CommandBufferFlag::kGeneralWork));
 
-	const Bool secondLevel = !!(cmdbFlags & CommandBufferFlag::SECOND_LEVEL);
-	const Bool smallBatch = !!(cmdbFlags & CommandBufferFlag::SMALL_BATCH);
+	const Bool secondLevel = !!(cmdbFlags & CommandBufferFlag::kSecondLevel);
+	const Bool smallBatch = !!(cmdbFlags & CommandBufferFlag::kSmallBatch);
 	const VulkanQueueType queue = getQueueTypeFromCommandBufferFlags(cmdbFlags, m_factory->m_queueFamilies);
 
 	MicroObjectRecycler<MicroCommandBuffer>& recycler = m_recyclers[secondLevel][smallBatch][queue];
@@ -134,11 +134,10 @@ Error CommandBufferThreadAllocator::newCommandBuffer(CommandBufferFlag cmdbFlags
 		VkCommandBuffer cmdb;
 		ANKI_VK_CHECK(vkAllocateCommandBuffers(m_factory->m_dev, &ci, &cmdb));
 
-		MicroCommandBuffer* newCmdb = getAllocator().newInstance<MicroCommandBuffer>(this);
+		MicroCommandBuffer* newCmdb = newInstance<MicroCommandBuffer>(getMemoryPool(), this);
 
-		newCmdb->m_fastAlloc =
-			StackAllocator<U8>(m_factory->m_alloc.getMemoryPool().getAllocationCallback(),
-							   m_factory->m_alloc.getMemoryPool().getAllocationCallbackUserData(), 256_KB, 2.0f);
+		newCmdb->m_fastPool.init(m_factory->m_pool->getAllocationCallback(),
+								 m_factory->m_pool->getAllocationCallbackUserData(), 256_KB, 2.0f);
 
 		newCmdb->m_handle = cmdb;
 		newCmdb->m_flags = cmdbFlags;
@@ -159,27 +158,27 @@ Error CommandBufferThreadAllocator::newCommandBuffer(CommandBufferFlag cmdbFlags
 	ANKI_ASSERT(out && out->m_refcount.load() == 0);
 	ANKI_ASSERT(out->m_flags == cmdbFlags);
 	outPtr.reset(out);
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void CommandBufferThreadAllocator::deleteCommandBuffer(MicroCommandBuffer* ptr)
 {
 	ANKI_ASSERT(ptr);
 
-	const Bool secondLevel = !!(ptr->m_flags & CommandBufferFlag::SECOND_LEVEL);
-	const Bool smallBatch = !!(ptr->m_flags & CommandBufferFlag::SMALL_BATCH);
+	const Bool secondLevel = !!(ptr->m_flags & CommandBufferFlag::kSecondLevel);
+	const Bool smallBatch = !!(ptr->m_flags & CommandBufferFlag::kSmallBatch);
 
 	m_recyclers[secondLevel][smallBatch][ptr->m_queue].recycle(ptr);
 }
 
-Error CommandBufferFactory::init(GrAllocator<U8> alloc, VkDevice dev, const VulkanQueueFamilies& queueFamilies)
+Error CommandBufferFactory::init(HeapMemoryPool* pool, VkDevice dev, const VulkanQueueFamilies& queueFamilies)
 {
-	ANKI_ASSERT(dev);
+	ANKI_ASSERT(pool && dev);
 
-	m_alloc = alloc;
+	m_pool = pool;
 	m_dev = dev;
 	m_queueFamilies = queueFamilies;
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void CommandBufferFactory::destroy()
@@ -203,10 +202,10 @@ void CommandBufferFactory::destroy()
 	for(CommandBufferThreadAllocator* talloc : m_threadAllocs)
 	{
 		talloc->destroy();
-		m_alloc.deleteInstance(talloc);
+		deleteInstance(*m_pool, talloc);
 	}
 
-	m_threadAllocs.destroy(m_alloc);
+	m_threadAllocs.destroy(*m_pool);
 }
 
 Error CommandBufferFactory::newCommandBuffer(ThreadId tid, CommandBufferFlag cmdbFlags, MicroCommandBufferPtr& ptr)
@@ -246,9 +245,9 @@ Error CommandBufferFactory::newCommandBuffer(ThreadId tid, CommandBufferFlag cmd
 
 			if(alloc == nullptr)
 			{
-				alloc = m_alloc.newInstance<CommandBufferThreadAllocator>(this, tid);
+				alloc = newInstance<CommandBufferThreadAllocator>(*m_pool, this, tid);
 
-				m_threadAllocs.resize(m_alloc, m_threadAllocs.getSize() + 1);
+				m_threadAllocs.resize(*m_pool, m_threadAllocs.getSize() + 1);
 				m_threadAllocs[m_threadAllocs.getSize() - 1] = alloc;
 
 				// Sort for fast find
@@ -266,7 +265,7 @@ Error CommandBufferFactory::newCommandBuffer(ThreadId tid, CommandBufferFlag cmd
 	ANKI_ASSERT(alloc->m_tid == tid);
 	ANKI_CHECK(alloc->newCommandBuffer(cmdbFlags, ptr));
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

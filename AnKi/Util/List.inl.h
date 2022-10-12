@@ -127,11 +127,11 @@ template<typename T, typename TNode>
 template<typename TFunc>
 Error ListBase<T, TNode>::iterateForward(TFunc func)
 {
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 	TNode* node = m_head;
 	while(node && !err)
 	{
-		err = func(node->getListNodeValue());
+		err = func(detail::GetListNodeValueFunc<TNode, T>()(*node));
 		node = node->m_next;
 	}
 
@@ -142,11 +142,11 @@ template<typename T, typename TNode>
 template<typename TFunc>
 Error ListBase<T, TNode>::iterateBackward(TFunc func)
 {
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 	TNode* node = m_tail;
 	while(node && !err)
 	{
-		err = func(node->getListNodeValue());
+		err = func(detail::GetListNodeValueFunc<TNode, T>()(*node));
 		node = node->m_prev;
 	}
 
@@ -172,7 +172,8 @@ void ListBase<T, TNode>::sort(TCompFunc compFunc)
 			TNode* sortPtrNext = sortPtr->m_next;
 			ANKI_ASSERT(sortPtrNext != nullptr);
 
-			if(compFunc(sortPtrNext->getListNodeValue(), sortPtr->getListNodeValue()))
+			if(compFunc(detail::GetListNodeValueFunc<TNode, T>()(*sortPtrNext),
+						detail::GetListNodeValueFunc<TNode, T>()(*sortPtr)))
 			{
 				sortPtr = swap(sortPtr, sortPtrNext);
 				swapped = true;
@@ -313,14 +314,14 @@ void ListBase<T, TNode>::popFront()
 } // end namespace detail
 
 template<typename T>
-template<typename TAllocator>
-void List<T>::destroy(TAllocator alloc)
+template<typename TMemPool>
+void List<T>::destroy(TMemPool& pool)
 {
 	Node* el = Base::m_head;
 	while(el)
 	{
 		Node* next = el->m_next;
-		alloc.deleteInstance(el);
+		deleteInstance(pool, el);
 		el = next;
 	}
 

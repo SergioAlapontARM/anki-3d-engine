@@ -13,16 +13,16 @@ namespace {
 class Cleanup
 {
 public:
-	HeapAllocator<U8> m_alloc{allocAligned, nullptr};
-	DynamicArrayAuto<CString> m_inputFilenames{m_alloc};
-	StringAuto m_outFilename{m_alloc};
+	HeapMemoryPool m_pool = {allocAligned, nullptr};
+	DynamicArrayRaii<CString> m_inputFilenames = {&m_pool};
+	StringRaii m_outFilename = {&m_pool};
 };
 
 } // namespace
 
-static const char* USAGE = R"(Usage: %s [options] in_files
+static const char* kUsage = R"(Usage: %s [options] in_files
 Options:
--o <filename>          : Output filename
+-o <filename>          : Output filename. If not provided the file will derive it from the input filenames
 -t <type>              : Image type. One of: 2D, 3D, Cube, 2DArray
 -no-alpha              : If the image has alpha don't store it. By default it stores it
 -store-s3tc <0|1>      : Store S3TC images. Default is 1
@@ -34,11 +34,13 @@ Options:
 -to-linear             : Convert sRGB to linear
 -to-srgb               : Convert linear to sRGB
 -flip-image <0|1>      : Flip the image. Default is 1
+-hdr-scale <3 floats>  : Apply some scale to HDR images. Default is {1 1 1}
+-hdr-bias <3 floats>   : Apply some bias to HDR images. Default is {0 0 0}
 )";
 
 static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& config, Cleanup& cleanup)
 {
-	config.m_compressions = ImageBinaryDataCompression::S3TC | ImageBinaryDataCompression::ASTC;
+	config.m_compressions = ImageBinaryDataCompression::kS3tc | ImageBinaryDataCompression::kAstc;
 	config.m_noAlpha = false;
 	config.m_astcBlockSize = UVec2(8u);
 
@@ -46,7 +48,7 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 	if(argc < 2)
 	{
 		// Need at least 1 input
-		return Error::USER_DATA;
+		return Error::kUserData;
 	}
 
 	I i;
@@ -59,7 +61,7 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			++i;
 			if(i >= argc)
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			cleanup.m_outFilename = argv[i];
@@ -69,28 +71,28 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			++i;
 			if(i >= argc)
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			if(CString(argv[i]) == "2D")
 			{
-				config.m_type = ImageBinaryType::_2D;
+				config.m_type = ImageBinaryType::k2D;
 			}
 			else if(CString(argv[i]) == "3D")
 			{
-				config.m_type = ImageBinaryType::_3D;
+				config.m_type = ImageBinaryType::k3D;
 			}
 			else if(CString(argv[i]) == "Cube")
 			{
-				config.m_type = ImageBinaryType::CUBE;
+				config.m_type = ImageBinaryType::kCube;
 			}
 			else if(CString(argv[i]) == "2DArray")
 			{
-				config.m_type = ImageBinaryType::_2D_ARRAY;
+				config.m_type = ImageBinaryType::k2DArray;
 			}
 			else
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 		}
 		else if(CString(argv[i]) == "-no-alpha")
@@ -102,20 +104,20 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			++i;
 			if(i >= argc)
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			if(CString(argv[i]) == "1")
 			{
-				config.m_compressions |= ImageBinaryDataCompression::S3TC;
+				config.m_compressions |= ImageBinaryDataCompression::kS3tc;
 			}
 			else if(CString(argv[i]) == "0")
 			{
-				config.m_compressions = config.m_compressions & ~ImageBinaryDataCompression::S3TC;
+				config.m_compressions = config.m_compressions & ~ImageBinaryDataCompression::kS3tc;
 			}
 			else
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 		}
 		else if(CString(argv[i]) == "-store-astc")
@@ -123,20 +125,20 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			++i;
 			if(i >= argc)
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			if(CString(argv[i]) == "1")
 			{
-				config.m_compressions |= ImageBinaryDataCompression::ASTC;
+				config.m_compressions |= ImageBinaryDataCompression::kAstc;
 			}
 			else if(CString(argv[i]) == "0")
 			{
-				config.m_compressions = config.m_compressions & ~ImageBinaryDataCompression::ASTC;
+				config.m_compressions = config.m_compressions & ~ImageBinaryDataCompression::kAstc;
 			}
 			else
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 		}
 		else if(CString(argv[i]) == "-store-raw")
@@ -144,20 +146,20 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			++i;
 			if(i >= argc)
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			if(CString(argv[i]) == "1")
 			{
-				config.m_compressions |= ImageBinaryDataCompression::RAW;
+				config.m_compressions |= ImageBinaryDataCompression::kRaw;
 			}
 			else if(CString(argv[i]) == "0")
 			{
-				config.m_compressions = config.m_compressions & ~ImageBinaryDataCompression::RAW;
+				config.m_compressions = config.m_compressions & ~ImageBinaryDataCompression::kRaw;
 			}
 			else
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 		}
 		else if(CString(argv[i]) == "-astc-block-size")
@@ -165,7 +167,7 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			++i;
 			if(i >= argc)
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			if(CString(argv[i]) == "4x4")
@@ -178,7 +180,7 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			}
 			else
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 		}
 		else if(CString(argv[i]) == "-mip-count")
@@ -186,7 +188,7 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			++i;
 			if(i >= argc)
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			ANKI_CHECK(CString(argv[i]).toNumber(config.m_mipmapCount));
@@ -208,7 +210,7 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			++i;
 			if(i >= argc)
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			if(CString(argv[i]) == "1")
@@ -221,8 +223,36 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 			}
 			else
 			{
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
+		}
+		else if(CString(argv[i]) == "-hdr-scale")
+		{
+			++i;
+			if(i + 2 >= argc)
+			{
+				return Error::kUserData;
+			}
+
+			F32 x, y, z;
+			ANKI_CHECK(CString(argv[i++]).toNumber(x));
+			ANKI_CHECK(CString(argv[i++]).toNumber(y));
+			ANKI_CHECK(CString(argv[i]).toNumber(z));
+			config.m_hdrScale = Vec3(x, y, z);
+		}
+		else if(CString(argv[i]) == "-hdr-bias")
+		{
+			++i;
+			if(i + 2 >= argc)
+			{
+				return Error::kUserData;
+			}
+
+			F32 x, y, z;
+			ANKI_CHECK(CString(argv[i++]).toNumber(x));
+			ANKI_CHECK(CString(argv[i++]).toNumber(y));
+			ANKI_CHECK(CString(argv[i]).toNumber(z));
+			config.m_hdrBias = Vec3(x, y, z);
 		}
 		else
 		{
@@ -237,31 +267,49 @@ static Error parseCommandLineArgs(int argc, char** argv, ImageImporterConfig& co
 		cleanup.m_inputFilenames.emplaceBack(argv[i]);
 	}
 
-	if(cleanup.m_outFilename.getLength() == 0 || cleanup.m_inputFilenames.getSize() == 0)
+	if(cleanup.m_inputFilenames.getSize() == 0)
 	{
-		return Error::USER_DATA;
+		return Error::kUserData;
+	}
+
+	if(cleanup.m_outFilename.isEmpty())
+	{
+		CString infname = cleanup.m_inputFilenames[0];
+
+		StringRaii ext(&cleanup.m_pool);
+		getFilepathExtension(infname, ext);
+
+		getFilepathFilename(infname, cleanup.m_outFilename);
+		if(ext.getLength() > 0)
+		{
+			cleanup.m_outFilename.replaceAll(ext, "ankitex");
+		}
+		else
+		{
+			cleanup.m_outFilename.append(".ankitex");
+		}
 	}
 
 	config.m_inputFilenames = ConstWeakArray<CString>(cleanup.m_inputFilenames);
 	config.m_outFilename = cleanup.m_outFilename;
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 int main(int argc, char** argv)
 {
-	HeapAllocator<U8> alloc(allocAligned, nullptr);
+	HeapMemoryPool pool(allocAligned, nullptr);
 
 	ImageImporterConfig config;
-	config.m_allocator = alloc;
+	config.m_pool = &pool;
 	Cleanup cleanup;
 	if(parseCommandLineArgs(argc, argv, config, cleanup))
 	{
-		ANKI_IMPORTER_LOGE(USAGE, argv[0]);
+		ANKI_IMPORTER_LOGE(kUsage, argv[0]);
 		return 1;
 	}
 
-	StringAuto tmp(alloc);
+	StringRaii tmp(&pool);
 	if(getTempDirectory(tmp))
 	{
 		ANKI_IMPORTER_LOGE("getTempDirectory() failed");
@@ -269,8 +317,16 @@ int main(int argc, char** argv)
 	}
 	config.m_tempDirectory = tmp;
 
-	config.m_compressonatorFilename = ANKI_SOURCE_DIRECTORY "/ThirdParty/Bin/Compressonator/compressonatorcli";
-	config.m_astcencFilename = ANKI_SOURCE_DIRECTORY "/ThirdParty/Bin/astcenc-avx2";
+#if ANKI_OS_WINDOWS
+	config.m_compressonatorFilename =
+		ANKI_SOURCE_DIRECTORY "/ThirdParty/Bin/Windows64/Compressonator/compressonatorcli.exe";
+	config.m_astcencFilename = ANKI_SOURCE_DIRECTORY "/ThirdParty/Bin/Windows64/astcenc-avx2.exe";
+#elif ANKI_OS_LINUX
+	config.m_compressonatorFilename = ANKI_SOURCE_DIRECTORY "/ThirdParty/Bin/Linux64/Compressonator/compressonatorcli";
+	config.m_astcencFilename = ANKI_SOURCE_DIRECTORY "/ThirdParty/Bin/Linux64/astcenc-avx2";
+#else
+#	error "Unupported"
+#endif
 
 	ANKI_IMPORTER_LOGI("Image importing started: %s", config.m_outFilename.cstr());
 

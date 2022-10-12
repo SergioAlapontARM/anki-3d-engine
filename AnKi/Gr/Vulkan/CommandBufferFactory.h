@@ -50,7 +50,7 @@ public:
 
 	void setFence(MicroFencePtr& fence)
 	{
-		ANKI_ASSERT(!(m_flags & CommandBufferFlag::SECOND_LEVEL));
+		ANKI_ASSERT(!(m_flags & CommandBufferFlag::kSecondLevel));
 		ANKI_ASSERT(!m_fence.isCreated());
 		m_fence = fence;
 	}
@@ -60,7 +60,7 @@ public:
 		return m_fence;
 	}
 
-	GrAllocator<U8>& getAllocator();
+	HeapMemoryPool& getMemoryPool();
 
 	/// Interface method.
 	void onFenceDone()
@@ -68,9 +68,9 @@ public:
 		reset();
 	}
 
-	StackAllocator<U8>& getFastAllocator()
+	StackMemoryPool& getFastMemoryPool()
 	{
-		return m_fastAlloc;
+		return m_fastPool;
 	}
 
 	VkCommandBuffer getHandle() const
@@ -82,7 +82,13 @@ public:
 	template<typename T>
 	void pushObjectRef(const GrObjectPtrT<T>& x)
 	{
-		pushToArray(m_objectRefs[T::CLASS_TYPE], x.get());
+		pushToArray(m_objectRefs[T::kClassType], x.get());
+	}
+
+	template<typename T>
+	void pushObjectRef(T* x)
+	{
+		pushToArray(m_objectRefs[T::kClassType], x);
 	}
 
 	CommandBufferFlag getFlags() const
@@ -92,25 +98,25 @@ public:
 
 	VulkanQueueType getVulkanQueueType() const
 	{
-		ANKI_ASSERT(m_queue != VulkanQueueType::COUNT);
+		ANKI_ASSERT(m_queue != VulkanQueueType::kCount);
 		return m_queue;
 	}
 
 private:
-	static constexpr U32 MAX_REF_OBJECT_SEARCH = 16;
+	static constexpr U32 kMaxRefObjectSearch = 16;
 
-	StackAllocator<U8> m_fastAlloc;
+	StackMemoryPool m_fastPool;
 	VkCommandBuffer m_handle = {};
 
 	MicroFencePtr m_fence;
-	Array<DynamicArray<GrObjectPtr>, U(GrObjectType::COUNT)> m_objectRefs;
+	Array<DynamicArray<GrObjectPtr>, U(GrObjectType::kCount)> m_objectRefs;
 
 	// Cacheline boundary
 
 	CommandBufferThreadAllocator* m_threadAlloc;
 	mutable Atomic<I32> m_refcount = {0};
-	CommandBufferFlag m_flags = CommandBufferFlag::NONE;
-	VulkanQueueType m_queue = VulkanQueueType::COUNT;
+	CommandBufferFlag m_flags = CommandBufferFlag::kNone;
+	VulkanQueueType m_queue = VulkanQueueType::kCount;
 
 	void reset();
 
@@ -119,9 +125,9 @@ private:
 		ANKI_ASSERT(grobj);
 
 		// Search the temp cache to avoid setting the ref again
-		if(arr.getSize() >= MAX_REF_OBJECT_SEARCH)
+		if(arr.getSize() >= kMaxRefObjectSearch)
 		{
-			for(U32 i = arr.getSize() - MAX_REF_OBJECT_SEARCH; i < arr.getSize(); ++i)
+			for(U32 i = arr.getSize() - kMaxRefObjectSearch; i < arr.getSize(); ++i)
 			{
 				if(arr[i].get() == grobj)
 				{
@@ -131,7 +137,7 @@ private:
 		}
 
 		// Not found in the temp cache, add it
-		arr.emplaceBack(m_fastAlloc, grobj);
+		arr.emplaceBack(m_fastPool, grobj);
 	}
 };
 
@@ -173,7 +179,7 @@ public:
 
 	void destroy();
 
-	GrAllocator<U8>& getAllocator();
+	HeapMemoryPool& getMemoryPool();
 
 	/// Request a new command buffer.
 	Error newCommandBuffer(CommandBufferFlag cmdbFlags, MicroCommandBufferPtr& ptr);
@@ -184,13 +190,13 @@ public:
 private:
 	CommandBufferFactory* m_factory;
 	ThreadId m_tid;
-	Array<VkCommandPool, U(VulkanQueueType::COUNT)> m_pools = {};
+	Array<VkCommandPool, U(VulkanQueueType::kCount)> m_pools = {};
 
 #if ANKI_EXTRA_CHECKS
 	Atomic<U32> m_createdCmdbs = {0};
 #endif
 
-	Array3d<MicroObjectRecycler<MicroCommandBuffer>, 2, 2, U(VulkanQueueType::COUNT)> m_recyclers;
+	Array3d<MicroObjectRecycler<MicroCommandBuffer>, 2, 2, U(VulkanQueueType::kCount)> m_recyclers;
 };
 
 /// Command bufffer object recycler.
@@ -208,7 +214,7 @@ public:
 
 	CommandBufferFactory& operator=(const CommandBufferFactory&) = delete; // Non-copyable
 
-	Error init(GrAllocator<U8> alloc, VkDevice dev, const VulkanQueueFamilies& queueFamilies);
+	Error init(HeapMemoryPool* pool, VkDevice dev, const VulkanQueueFamilies& queueFamilies);
 
 	void destroy();
 
@@ -222,7 +228,7 @@ public:
 	}
 
 private:
-	GrAllocator<U8> m_alloc;
+	HeapMemoryPool* m_pool = nullptr;
 	VkDevice m_dev = VK_NULL_HANDLE;
 	VulkanQueueFamilies m_queueFamilies;
 

@@ -37,16 +37,16 @@ public:
 
 	GlobalIlluminationProbeQueueElement*
 		m_probeToUpdateThisFrame ANKI_DEBUG_CODE(= numberToPtr<GlobalIlluminationProbeQueueElement*>(1));
-	UVec3 m_cellOfTheProbeToUpdateThisFrame ANKI_DEBUG_CODE(= UVec3(MAX_U32));
+	UVec3 m_cellOfTheProbeToUpdateThisFrame ANKI_DEBUG_CODE(= UVec3(kMaxU32));
 
-	Array<RenderTargetHandle, GBUFFER_COLOR_ATTACHMENT_COUNT> m_gbufferColorRts;
+	Array<RenderTargetHandle, kGBufferColorRenderTargetCount> m_gbufferColorRts;
 	RenderTargetHandle m_gbufferDepthRt;
 	RenderTargetHandle m_shadowsRt;
 	RenderTargetHandle m_lightShadingRt;
 	WeakArray<RenderTargetHandle> m_irradianceProbeRts;
 
-	U32 m_gbufferDrawcallCount ANKI_DEBUG_CODE(= MAX_U32);
-	U32 m_smDrawcallCount ANKI_DEBUG_CODE(= MAX_U32);
+	U32 m_gbufferDrawcallCount ANKI_DEBUG_CODE(= kMaxU32);
+	U32 m_smDrawcallCount ANKI_DEBUG_CODE(= kMaxU32);
 
 	static void foo()
 	{
@@ -56,8 +56,8 @@ public:
 
 IndirectDiffuseProbes::~IndirectDiffuseProbes()
 {
-	m_cacheEntries.destroy(getAllocator());
-	m_probeUuidToCacheEntryIdx.destroy(getAllocator());
+	m_cacheEntries.destroy(getMemoryPool());
+	m_probeUuidToCacheEntryIdx.destroy(getMemoryPool());
 }
 
 const RenderTargetHandle&
@@ -75,14 +75,14 @@ void IndirectDiffuseProbes::setRenderGraphDependencies(const RenderingContext& c
 {
 	for(U32 idx = 0; idx < ctx.m_renderQueue->m_giProbes.getSize(); ++idx)
 	{
-		pass.newDependency({getVolumeRenderTarget(ctx.m_renderQueue->m_giProbes[idx]), usage});
+		pass.newTextureDependency(getVolumeRenderTarget(ctx.m_renderQueue->m_giProbes[idx]), usage);
 	}
 }
 
 void IndirectDiffuseProbes::bindVolumeTextures(const RenderingContext& ctx, RenderPassWorkContext& rgraphCtx, U32 set,
 											   U32 binding) const
 {
-	for(U32 idx = 0; idx < MAX_VISIBLE_GLOBAL_ILLUMINATION_PROBES; ++idx)
+	for(U32 idx = 0; idx < kMaxVisibleGlobalIlluminationProbes; ++idx)
 	{
 		if(idx < ctx.m_renderQueue->m_giProbes.getSize())
 		{
@@ -109,9 +109,9 @@ Error IndirectDiffuseProbes::init()
 Error IndirectDiffuseProbes::initInternal()
 {
 	m_tileSize = getConfig().getRIndirectDiffuseProbeTileResolution();
-	m_cacheEntries.create(getAllocator(), getConfig().getRIndirectDiffuseProbeMaxCachedProbes());
+	m_cacheEntries.create(getMemoryPool(), getConfig().getRIndirectDiffuseProbeMaxCachedProbes());
 	m_maxVisibleProbes = getConfig().getRIndirectDiffuseProbeMaxVisibleProbes();
-	ANKI_ASSERT(m_maxVisibleProbes <= MAX_VISIBLE_GLOBAL_ILLUMINATION_PROBES);
+	ANKI_ASSERT(m_maxVisibleProbes <= kMaxVisibleGlobalIlluminationProbes);
 	ANKI_ASSERT(m_cacheEntries.getSize() >= m_maxVisibleProbes);
 
 	ANKI_CHECK(initGBuffer());
@@ -119,7 +119,7 @@ Error IndirectDiffuseProbes::initInternal()
 	ANKI_CHECK(initShadowMapping());
 	ANKI_CHECK(initIrradiance());
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error IndirectDiffuseProbes::initGBuffer()
@@ -127,14 +127,15 @@ Error IndirectDiffuseProbes::initGBuffer()
 	// Create RT descriptions
 	{
 		RenderTargetDescription texinit = m_r->create2DRenderTargetDescription(
-			m_tileSize * 6, m_tileSize, GBUFFER_COLOR_ATTACHMENT_PIXEL_FORMATS[0], "GI GBuffer");
+			m_tileSize * 6, m_tileSize, kGBufferColorRenderTargetFormats[0], "GI GBuffer");
 
 		// Create color RT descriptions
-		for(U32 i = 0; i < GBUFFER_COLOR_ATTACHMENT_COUNT; ++i)
+		for(U32 i = 0; i < kGBufferColorRenderTargetCount; ++i)
 		{
-			texinit.m_format = GBUFFER_COLOR_ATTACHMENT_PIXEL_FORMATS[i];
+			texinit.m_format = kGBufferColorRenderTargetFormats[i];
 			m_gbuffer.m_colorRtDescrs[i] = texinit;
-			m_gbuffer.m_colorRtDescrs[i].setName(StringAuto(getAllocator()).sprintf("GI GBuff Col #%u", i).toCString());
+			m_gbuffer.m_colorRtDescrs[i].setName(
+				StringRaii(&getMemoryPool()).sprintf("GI GBuff Col #%u", i).toCString());
 			m_gbuffer.m_colorRtDescrs[i].bake();
 		}
 
@@ -147,21 +148,21 @@ Error IndirectDiffuseProbes::initGBuffer()
 
 	// Create FB descr
 	{
-		m_gbuffer.m_fbDescr.m_colorAttachmentCount = GBUFFER_COLOR_ATTACHMENT_COUNT;
+		m_gbuffer.m_fbDescr.m_colorAttachmentCount = kGBufferColorRenderTargetCount;
 
-		for(U j = 0; j < GBUFFER_COLOR_ATTACHMENT_COUNT; ++j)
+		for(U j = 0; j < kGBufferColorRenderTargetCount; ++j)
 		{
-			m_gbuffer.m_fbDescr.m_colorAttachments[j].m_loadOperation = AttachmentLoadOperation::CLEAR;
+			m_gbuffer.m_fbDescr.m_colorAttachments[j].m_loadOperation = AttachmentLoadOperation::kClear;
 		}
 
-		m_gbuffer.m_fbDescr.m_depthStencilAttachment.m_aspect = DepthStencilAspectBit::DEPTH;
-		m_gbuffer.m_fbDescr.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::CLEAR;
+		m_gbuffer.m_fbDescr.m_depthStencilAttachment.m_aspect = DepthStencilAspectBit::kDepth;
+		m_gbuffer.m_fbDescr.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::kClear;
 		m_gbuffer.m_fbDescr.m_depthStencilAttachment.m_clearValue.m_depthStencil.m_depth = 1.0f;
 
 		m_gbuffer.m_fbDescr.bake();
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error IndirectDiffuseProbes::initShadowMapping()
@@ -176,12 +177,12 @@ Error IndirectDiffuseProbes::initShadowMapping()
 
 	// FB descr
 	m_shadowMapping.m_fbDescr.m_colorAttachmentCount = 0;
-	m_shadowMapping.m_fbDescr.m_depthStencilAttachment.m_aspect = DepthStencilAspectBit::DEPTH;
+	m_shadowMapping.m_fbDescr.m_depthStencilAttachment.m_aspect = DepthStencilAspectBit::kDepth;
 	m_shadowMapping.m_fbDescr.m_depthStencilAttachment.m_clearValue.m_depthStencil.m_depth = 1.0f;
-	m_shadowMapping.m_fbDescr.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::CLEAR;
+	m_shadowMapping.m_fbDescr.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::kClear;
 	m_shadowMapping.m_fbDescr.bake();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error IndirectDiffuseProbes::initLightShading()
@@ -196,14 +197,14 @@ Error IndirectDiffuseProbes::initLightShading()
 	// Create FB descr
 	{
 		m_lightShading.m_fbDescr.m_colorAttachmentCount = 1;
-		m_lightShading.m_fbDescr.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::CLEAR;
+		m_lightShading.m_fbDescr.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::kClear;
 		m_lightShading.m_fbDescr.bake();
 	}
 
 	// Init deferred
 	ANKI_CHECK(m_lightShading.m_deferred.init());
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error IndirectDiffuseProbes::initIrradiance()
@@ -221,14 +222,14 @@ Error IndirectDiffuseProbes::initIrradiance()
 	m_irradiance.m_prog->getOrCreateVariant(variantInitInfo, variant);
 	m_irradiance.m_grProg = variant->getProgram();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void IndirectDiffuseProbes::populateRenderGraph(RenderingContext& rctx)
 {
 	ANKI_TRACE_SCOPED_EVENT(R_GI);
 
-	InternalContext* giCtx = rctx.m_tempAllocator.newInstance<InternalContext>();
+	InternalContext* giCtx = newInstance<InternalContext>(*rctx.m_tempPool);
 	m_giCtx = giCtx;
 	giCtx->m_gi = this;
 	giCtx->m_ctx = &rctx;
@@ -266,7 +267,7 @@ void IndirectDiffuseProbes::populateRenderGraph(RenderingContext& rctx)
 	// GBuffer
 	{
 		// RTs
-		for(U i = 0; i < GBUFFER_COLOR_ATTACHMENT_COUNT; ++i)
+		for(U i = 0; i < kGBufferColorRenderTargetCount; ++i)
 		{
 			giCtx->m_gbufferColorRts[i] = rgraph.newRenderTarget(m_gbuffer.m_colorRtDescrs[i]);
 		}
@@ -279,13 +280,13 @@ void IndirectDiffuseProbes::populateRenderGraph(RenderingContext& rctx)
 			runGBufferInThread(rgraphCtx, *giCtx);
 		});
 
-		for(U i = 0; i < GBUFFER_COLOR_ATTACHMENT_COUNT; ++i)
+		for(U i = 0; i < kGBufferColorRenderTargetCount; ++i)
 		{
-			pass.newDependency({giCtx->m_gbufferColorRts[i], TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE});
+			pass.newTextureDependency(giCtx->m_gbufferColorRts[i], TextureUsageBit::kFramebufferWrite);
 		}
 
-		TextureSubresourceInfo subresource(DepthStencilAspectBit::DEPTH);
-		pass.newDependency({giCtx->m_gbufferDepthRt, TextureUsageBit::ALL_FRAMEBUFFER_ATTACHMENT, subresource});
+		TextureSubresourceInfo subresource(DepthStencilAspectBit::kDepth);
+		pass.newTextureDependency(giCtx->m_gbufferDepthRt, TextureUsageBit::kAllFramebuffer, subresource);
 	}
 
 	// Shadow pass. Optional
@@ -321,8 +322,8 @@ void IndirectDiffuseProbes::populateRenderGraph(RenderingContext& rctx)
 			runShadowmappingInThread(rgraphCtx, *giCtx);
 		});
 
-		TextureSubresourceInfo subresource(DepthStencilAspectBit::DEPTH);
-		pass.newDependency({giCtx->m_shadowsRt, TextureUsageBit::ALL_FRAMEBUFFER_ATTACHMENT, subresource});
+		TextureSubresourceInfo subresource(DepthStencilAspectBit::kDepth);
+		pass.newTextureDependency(giCtx->m_shadowsRt, TextureUsageBit::kAllFramebuffer, subresource);
 	}
 	else
 	{
@@ -341,18 +342,18 @@ void IndirectDiffuseProbes::populateRenderGraph(RenderingContext& rctx)
 			runLightShading(rgraphCtx, *giCtx);
 		});
 
-		pass.newDependency({giCtx->m_lightShadingRt, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE});
+		pass.newTextureDependency(giCtx->m_lightShadingRt, TextureUsageBit::kFramebufferWrite);
 
-		for(U i = 0; i < GBUFFER_COLOR_ATTACHMENT_COUNT; ++i)
+		for(U i = 0; i < kGBufferColorRenderTargetCount; ++i)
 		{
-			pass.newDependency({giCtx->m_gbufferColorRts[i], TextureUsageBit::SAMPLED_FRAGMENT});
+			pass.newTextureDependency(giCtx->m_gbufferColorRts[i], TextureUsageBit::kSampledFragment);
 		}
-		pass.newDependency({giCtx->m_gbufferDepthRt, TextureUsageBit::SAMPLED_FRAGMENT,
-							TextureSubresourceInfo(DepthStencilAspectBit::DEPTH)});
+		pass.newTextureDependency(giCtx->m_gbufferDepthRt, TextureUsageBit::kSampledFragment,
+								  TextureSubresourceInfo(DepthStencilAspectBit::kDepth));
 
 		if(giCtx->m_shadowsRt.isValid())
 		{
-			pass.newDependency({giCtx->m_shadowsRt, TextureUsageBit::SAMPLED_FRAGMENT});
+			pass.newTextureDependency(giCtx->m_shadowsRt, TextureUsageBit::kSampledFragment);
 		}
 	}
 
@@ -364,15 +365,15 @@ void IndirectDiffuseProbes::populateRenderGraph(RenderingContext& rctx)
 			runIrradiance(rgraphCtx, *giCtx);
 		});
 
-		pass.newDependency({giCtx->m_lightShadingRt, TextureUsageBit::SAMPLED_COMPUTE});
+		pass.newTextureDependency(giCtx->m_lightShadingRt, TextureUsageBit::kSampledCompute);
 
-		for(U32 i = 0; i < GBUFFER_COLOR_ATTACHMENT_COUNT - 1; ++i)
+		for(U32 i = 0; i < kGBufferColorRenderTargetCount - 1; ++i)
 		{
-			pass.newDependency({giCtx->m_gbufferColorRts[i], TextureUsageBit::SAMPLED_COMPUTE});
+			pass.newTextureDependency(giCtx->m_gbufferColorRts[i], TextureUsageBit::kSampledCompute);
 		}
 
 		const U32 probeIdx = U32(giCtx->m_probeToUpdateThisFrame - &giCtx->m_ctx->m_renderQueue->m_giProbes.getFront());
-		pass.newDependency({giCtx->m_irradianceProbeRts[probeIdx], TextureUsageBit::IMAGE_COMPUTE_WRITE});
+		pass.newTextureDependency(giCtx->m_irradianceProbeRts[probeIdx], TextureUsageBit::kImageComputeWrite);
 	}
 }
 
@@ -391,9 +392,9 @@ void IndirectDiffuseProbes::prepareProbes(InternalContext& giCtx)
 	// - Find a probe to update next frame
 	// - Find the cache entries for each probe
 	DynamicArray<GlobalIlluminationProbeQueueElement> newListOfProbes;
-	newListOfProbes.create(ctx.m_tempAllocator, ctx.m_renderQueue->m_giProbes.getSize());
+	newListOfProbes.create(*ctx.m_tempPool, ctx.m_renderQueue->m_giProbes.getSize());
 	DynamicArray<RenderTargetHandle> volumeRts;
-	volumeRts.create(ctx.m_tempAllocator, ctx.m_renderQueue->m_giProbes.getSize());
+	volumeRts.create(*ctx.m_tempPool, ctx.m_renderQueue->m_giProbes.getSize());
 	U32 newListOfProbeCount = 0;
 	Bool foundProbeToUpdateNextFrame = false;
 	for(U32 probeIdx = 0; probeIdx < ctx.m_renderQueue->m_giProbes.getSize(); ++probeIdx)
@@ -410,8 +411,8 @@ void IndirectDiffuseProbes::prepareProbes(InternalContext& giCtx)
 
 		// Find cache entry
 		const U32 cacheEntryIdx = findBestCacheEntry(probe.m_uuid, m_r->getGlobalTimestamp(), m_cacheEntries,
-													 m_probeUuidToCacheEntryIdx, getAllocator());
-		if(ANKI_UNLIKELY(cacheEntryIdx == MAX_U32))
+													 m_probeUuidToCacheEntryIdx, getMemoryPool());
+		if(ANKI_UNLIKELY(cacheEntryIdx == kMaxU32))
 		{
 			// Failed
 			ANKI_R_LOGW("There is not enough space in the indirect lighting atlas for more probes. "
@@ -432,7 +433,7 @@ void IndirectDiffuseProbes::prepareProbes(InternalContext& giCtx)
 
 			entry.m_lastUsedTimestamp = m_r->getGlobalTimestamp();
 			volumeRts[newListOfProbeCount] =
-				ctx.m_renderGraphDescr.importRenderTarget(entry.m_volumeTex, TextureUsageBit::SAMPLED_FRAGMENT);
+				ctx.m_renderGraphDescr.importRenderTarget(entry.m_volumeTex, TextureUsageBit::kSampledFragment);
 			newListOfProbes[newListOfProbeCount++] = probe;
 			continue;
 		}
@@ -468,7 +469,7 @@ void IndirectDiffuseProbes::prepareProbes(InternalContext& giCtx)
 			entry.m_probeAabbMin = probe.m_aabbMin;
 			entry.m_probeAabbMax = probe.m_aabbMax;
 			entry.m_volumeSize = probe.m_cellCounts;
-			m_probeUuidToCacheEntryIdx.emplace(getAllocator(), probe.m_uuid, cacheEntryIdx);
+			m_probeUuidToCacheEntryIdx.emplace(getMemoryPool(), probe.m_uuid, cacheEntryIdx);
 		}
 
 		// Update the cache entry
@@ -479,14 +480,14 @@ void IndirectDiffuseProbes::prepareProbes(InternalContext& giCtx)
 		if(shouldInitTextures)
 		{
 			TextureInitInfo texInit("GiProbeVolume");
-			texInit.m_type = TextureType::_3D;
+			texInit.m_type = TextureType::k3D;
 			texInit.m_format = m_r->getHdrFormat();
 			texInit.m_width = probe.m_cellCounts.x() * 6;
 			texInit.m_height = probe.m_cellCounts.y();
 			texInit.m_depth = probe.m_cellCounts.z();
-			texInit.m_usage = TextureUsageBit::ALL_COMPUTE | TextureUsageBit::ALL_SAMPLED;
+			texInit.m_usage = TextureUsageBit::kAllCompute | TextureUsageBit::kAllSampled;
 
-			entry.m_volumeTex = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::SAMPLED_FRAGMENT);
+			entry.m_volumeTex = m_r->createAndClearRenderTarget(texInit, TextureUsageBit::kSampledFragment);
 		}
 
 		// Compute the render position
@@ -514,7 +515,7 @@ void IndirectDiffuseProbes::prepareProbes(InternalContext& giCtx)
 		giCtx.m_probeToUpdateThisFrame = &newListOfProbes[newListOfProbeCount];
 		newListOfProbes[newListOfProbeCount] = probe;
 		volumeRts[newListOfProbeCount] =
-			ctx.m_renderGraphDescr.importRenderTarget(entry.m_volumeTex, TextureUsageBit::SAMPLED_FRAGMENT);
+			ctx.m_renderGraphDescr.importRenderTarget(entry.m_volumeTex, TextureUsageBit::kSampledFragment);
 		++newListOfProbeCount;
 	}
 
@@ -533,8 +534,8 @@ void IndirectDiffuseProbes::prepareProbes(InternalContext& giCtx)
 	else
 	{
 		ctx.m_renderQueue->m_giProbes = WeakArray<GlobalIlluminationProbeQueueElement>();
-		newListOfProbes.destroy(ctx.m_tempAllocator);
-		volumeRts.destroy(ctx.m_tempAllocator);
+		newListOfProbes.destroy(*ctx.m_tempPool);
+		volumeRts.destroy(*ctx.m_tempPool);
 	}
 }
 
@@ -576,9 +577,9 @@ void IndirectDiffuseProbes::runGBufferInThread(RenderPassWorkContext& rgraphCtx,
 			args.m_viewProjectionMatrix = rqueue.m_viewProjectionMatrix;
 			args.m_previousViewProjectionMatrix = Mat4::getIdentity(); // Don't care
 			args.m_sampler = m_r->getSamplers().m_trilinearRepeat;
-			args.m_minLod = args.m_maxLod = MAX_LOD_COUNT - 1;
+			args.m_minLod = args.m_maxLod = kMaxLodCount - 1;
 
-			m_r->getSceneDrawer().drawRange(RenderingTechnique::GBUFFER, args,
+			m_r->getSceneDrawer().drawRange(RenderingTechnique::kGBuffer, args,
 											rqueue.m_renderables.getBegin() + localStart,
 											rqueue.m_renderables.getBegin() + localEnd, cmdb);
 		}
@@ -634,9 +635,9 @@ void IndirectDiffuseProbes::runShadowmappingInThread(RenderPassWorkContext& rgra
 			args.m_viewProjectionMatrix = cascadeRenderQueue.m_viewProjectionMatrix;
 			args.m_previousViewProjectionMatrix = Mat4::getIdentity(); // Don't care
 			args.m_sampler = m_r->getSamplers().m_trilinearRepeatAniso;
-			args.m_maxLod = args.m_minLod = MAX_LOD_COUNT - 1;
+			args.m_maxLod = args.m_minLod = kMaxLodCount - 1;
 
-			m_r->getSceneDrawer().drawRange(RenderingTechnique::SHADOW, args,
+			m_r->getSceneDrawer().drawRange(RenderingTechnique::kShadow, args,
 											cascadeRenderQueue.m_renderables.getBegin() + localStart,
 											cascadeRenderQueue.m_renderables.getBegin() + localEnd, cmdb);
 		}
@@ -709,7 +710,7 @@ void IndirectDiffuseProbes::runIrradiance(RenderPassWorkContext& rgraphCtx, Inte
 	cmdb->bindSampler(0, 0, m_r->getSamplers().m_nearestNearestClamp);
 	rgraphCtx.bindColorTexture(0, 1, giCtx.m_lightShadingRt);
 
-	for(U32 i = 0; i < GBUFFER_COLOR_ATTACHMENT_COUNT - 1; ++i)
+	for(U32 i = 0; i < kGBufferColorRenderTargetCount - 1; ++i)
 	{
 		rgraphCtx.bindColorTexture(0, 2, giCtx.m_gbufferColorRts[i], i);
 	}

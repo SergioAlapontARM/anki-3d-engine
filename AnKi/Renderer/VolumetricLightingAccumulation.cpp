@@ -38,7 +38,7 @@ Error VolumetricLightingAccumulation::init()
 	   || m_volumeSize[0] == 0 || m_volumeSize[1] == 0 || m_volumeSize[2] == 0)
 	{
 		ANKI_R_LOGE("Wrong input");
-		return Error::USER_DATA;
+		return Error::kUserData;
 	}
 
 	ANKI_CHECK(getResourceManager().loadResource("EngineAssets/BlueNoise_Rgba8_64x64.png", m_noiseImage));
@@ -48,10 +48,10 @@ Error VolumetricLightingAccumulation::init()
 
 	ShaderProgramResourceVariantInitInfo variantInitInfo(m_prog);
 	variantInitInfo.addMutation("ENABLE_SHADOWS", 1);
-	variantInitInfo.addConstant("VOLUME_SIZE", UVec3(m_volumeSize[0], m_volumeSize[1], m_volumeSize[2]));
-	variantInitInfo.addConstant("TILE_COUNT", UVec2(m_r->getTileCounts().x(), m_r->getTileCounts().y()));
-	variantInitInfo.addConstant("Z_SPLIT_COUNT", m_r->getZSplitCount());
-	variantInitInfo.addConstant("FINAL_Z_SPLIT", m_finalZSplit);
+	variantInitInfo.addConstant("kVolumeSize", UVec3(m_volumeSize[0], m_volumeSize[1], m_volumeSize[2]));
+	variantInitInfo.addConstant("kTileCount", UVec2(m_r->getTileCounts().x(), m_r->getTileCounts().y()));
+	variantInitInfo.addConstant("kZSplitCount", m_r->getZSplitCount());
+	variantInitInfo.addConstant("kFinalZSplit", m_finalZSplit);
 
 	const ShaderProgramResourceVariant* variant;
 	m_prog->getOrCreateVariant(variantInitInfo, variant);
@@ -60,16 +60,16 @@ Error VolumetricLightingAccumulation::init()
 
 	// Create RTs
 	TextureInitInfo texinit =
-		m_r->create2DRenderTargetInitInfo(m_volumeSize[0], m_volumeSize[1], Format::R16G16B16A16_SFLOAT,
-										  TextureUsageBit::IMAGE_COMPUTE_READ | TextureUsageBit::IMAGE_COMPUTE_WRITE
-											  | TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::SAMPLED_COMPUTE,
+		m_r->create2DRenderTargetInitInfo(m_volumeSize[0], m_volumeSize[1], Format::kR16G16B16A16_Sfloat,
+										  TextureUsageBit::kImageComputeRead | TextureUsageBit::kImageComputeWrite
+											  | TextureUsageBit::kSampledFragment | TextureUsageBit::kSampledCompute,
 										  "VolLight");
 	texinit.m_depth = m_volumeSize[2];
-	texinit.m_type = TextureType::_3D;
-	m_rtTextures[0] = m_r->createAndClearRenderTarget(texinit, TextureUsageBit::SAMPLED_FRAGMENT);
-	m_rtTextures[1] = m_r->createAndClearRenderTarget(texinit, TextureUsageBit::SAMPLED_FRAGMENT);
+	texinit.m_type = TextureType::k3D;
+	m_rtTextures[0] = m_r->createAndClearRenderTarget(texinit, TextureUsageBit::kSampledFragment);
+	m_rtTextures[1] = m_r->createAndClearRenderTarget(texinit, TextureUsageBit::kSampledFragment);
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void VolumetricLightingAccumulation::populateRenderGraph(RenderingContext& ctx)
@@ -78,8 +78,8 @@ void VolumetricLightingAccumulation::populateRenderGraph(RenderingContext& ctx)
 
 	const U readRtIdx = m_r->getFrameCount() & 1;
 
-	m_runCtx.m_rts[0] = rgraph.importRenderTarget(m_rtTextures[readRtIdx], TextureUsageBit::SAMPLED_FRAGMENT);
-	m_runCtx.m_rts[1] = rgraph.importRenderTarget(m_rtTextures[!readRtIdx], TextureUsageBit::NONE);
+	m_runCtx.m_rts[0] = rgraph.importRenderTarget(m_rtTextures[readRtIdx], TextureUsageBit::kSampledFragment);
+	m_runCtx.m_rts[1] = rgraph.importRenderTarget(m_rtTextures[!readRtIdx], TextureUsageBit::kNone);
 
 	ComputeRenderPassDescription& pass = rgraph.newComputeRenderPass("Vol light");
 
@@ -87,15 +87,13 @@ void VolumetricLightingAccumulation::populateRenderGraph(RenderingContext& ctx)
 		run(ctx, rgraphCtx);
 	});
 
-	pass.newDependency(RenderPassDependency(m_runCtx.m_rts[0], TextureUsageBit::SAMPLED_COMPUTE));
-	pass.newDependency(RenderPassDependency(m_runCtx.m_rts[1], TextureUsageBit::IMAGE_COMPUTE_WRITE));
-	pass.newDependency(
-		RenderPassDependency(m_r->getShadowMapping().getShadowmapRt(), TextureUsageBit::SAMPLED_COMPUTE));
+	pass.newTextureDependency(m_runCtx.m_rts[0], TextureUsageBit::kSampledCompute);
+	pass.newTextureDependency(m_runCtx.m_rts[1], TextureUsageBit::kImageComputeWrite);
+	pass.newTextureDependency(m_r->getShadowMapping().getShadowmapRt(), TextureUsageBit::kSampledCompute);
 
-	pass.newDependency(
-		RenderPassDependency(ctx.m_clusteredShading.m_clustersBufferHandle, BufferUsageBit::STORAGE_COMPUTE_READ));
+	pass.newBufferDependency(ctx.m_clusteredShading.m_clustersBufferHandle, BufferUsageBit::kStorageComputeRead);
 
-	m_r->getIndirectDiffuseProbes().setRenderGraphDependencies(ctx, pass, TextureUsageBit::SAMPLED_COMPUTE);
+	m_r->getIndirectDiffuseProbes().setRenderGraphDependencies(ctx, pass, TextureUsageBit::kSampledCompute);
 }
 
 void VolumetricLightingAccumulation::run(const RenderingContext& ctx, RenderPassWorkContext& rgraphCtx)
@@ -131,14 +129,14 @@ void VolumetricLightingAccumulation::run(const RenderingContext& ctx, RenderPass
 	if(queueEl.m_fog.m_heightOfMaxDensity > queueEl.m_fog.m_heightOfMinDensity)
 	{
 		unis.m_minHeight = queueEl.m_fog.m_heightOfMinDensity;
-		unis.m_oneOverMaxMinusMinHeight = 1.0f / (queueEl.m_fog.m_heightOfMaxDensity - unis.m_minHeight + EPSILON);
+		unis.m_oneOverMaxMinusMinHeight = 1.0f / (queueEl.m_fog.m_heightOfMaxDensity - unis.m_minHeight + kEpsilonf);
 		unis.m_densityAtMinHeight = queueEl.m_fog.m_minDensity;
 		unis.m_densityAtMaxHeight = queueEl.m_fog.m_maxDensity;
 	}
 	else
 	{
 		unis.m_minHeight = queueEl.m_fog.m_heightOfMaxDensity;
-		unis.m_oneOverMaxMinusMinHeight = 1.0f / (queueEl.m_fog.m_heightOfMinDensity - unis.m_minHeight + EPSILON);
+		unis.m_oneOverMaxMinusMinHeight = 1.0f / (queueEl.m_fog.m_heightOfMinDensity - unis.m_minHeight + kEpsilonf);
 		unis.m_densityAtMinHeight = queueEl.m_fog.m_maxDensity;
 		unis.m_densityAtMaxHeight = queueEl.m_fog.m_minDensity;
 	}

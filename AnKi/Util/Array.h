@@ -13,7 +13,7 @@ namespace anki {
 /// @{
 
 /// Like std::array but with some additions
-template<typename T, PtrSize N>
+template<typename T, PtrSize kSize>
 class Array
 {
 public:
@@ -29,13 +29,13 @@ public:
 	using reference = Reference;
 	using const_reference = ConstReference;
 
-	Value m_data[N];
+	Value m_data[kSize];
 
 	/// Access an element using an integer.
 	template<typename TInt, ANKI_ENABLE(!std::is_enum<TInt>::value)>
 	Reference operator[](const TInt n)
 	{
-		ANKI_ASSERT(PtrSize(n) < N);
+		ANKI_ASSERT(PtrSize(n) < kSize);
 		return m_data[n];
 	}
 
@@ -43,7 +43,7 @@ public:
 	template<typename TInt, ANKI_ENABLE(!std::is_enum<TInt>::value)>
 	ConstReference operator[](const TInt n) const
 	{
-		ANKI_ASSERT(PtrSize(n) < N);
+		ANKI_ASSERT(PtrSize(n) < kSize);
 		return m_data[n];
 	}
 
@@ -75,12 +75,12 @@ public:
 
 	Iterator getEnd()
 	{
-		return &m_data[0] + N;
+		return &m_data[0] + kSize;
 	}
 
 	ConstIterator getEnd() const
 	{
-		return &m_data[0] + N;
+		return &m_data[0] + kSize;
 	}
 
 	Reference getFront()
@@ -95,12 +95,12 @@ public:
 
 	Reference getBack()
 	{
-		return m_data[N - 1];
+		return m_data[kSize - 1];
 	}
 
 	ConstReference getBack() const
 	{
-		return m_data[N - 1];
+		return m_data[kSize - 1];
 	}
 
 	/// Make it compatible with the C++11 range based for loop
@@ -156,18 +156,28 @@ public:
 	ANKI_ENABLE_METHOD(condition) \
 	static constexpr type getSize() \
 	{ \
-		return type(N); \
+		return type(kSize); \
 	}
-	ANKI_ARRAY_SIZE_METHOD(U8, N <= MAX_U8)
-	ANKI_ARRAY_SIZE_METHOD(U16, N > MAX_U8 && N <= MAX_U16)
-	ANKI_ARRAY_SIZE_METHOD(U32, N > MAX_U16 && N <= MAX_U32)
-	ANKI_ARRAY_SIZE_METHOD(U64, N > MAX_U32)
+	ANKI_ARRAY_SIZE_METHOD(U8, kSize <= kMaxU8)
+	ANKI_ARRAY_SIZE_METHOD(U16, kSize > kMaxU8 && kSize <= kMaxU16)
+	ANKI_ARRAY_SIZE_METHOD(U32, kSize > kMaxU16 && kSize <= kMaxU32)
+	ANKI_ARRAY_SIZE_METHOD(U64, kSize > kMaxU32)
 #undef ANKI_ARRAY_SIZE_METHOD
 
 	/// Make it compatible with STL
 	static constexpr size_t size()
 	{
-		return N;
+		return kSize;
+	}
+
+	/// Fill the array.
+	void fill(Iterator begin, Iterator end, const T& val)
+	{
+		while(begin != end)
+		{
+			*begin = val;
+			++begin;
+		}
 	}
 
 	// Get size in bytes
@@ -175,14 +185,20 @@ public:
 	ANKI_ENABLE_METHOD(condition) \
 	static constexpr type getSizeInBytes() \
 	{ \
-		return type(N * sizeof(Value)); \
+		return type(kSize * sizeof(Value)); \
 	}
-	ANKI_ARRAY_SIZE_IN_BYTES_METHOD(U8, N * sizeof(Value) <= MAX_U8)
-	ANKI_ARRAY_SIZE_IN_BYTES_METHOD(U16, N * sizeof(Value) > MAX_U8 && N * sizeof(Value) <= MAX_U16)
-	ANKI_ARRAY_SIZE_IN_BYTES_METHOD(U32, N * sizeof(Value) > MAX_U16 && N * sizeof(Value) <= MAX_U32)
-	ANKI_ARRAY_SIZE_IN_BYTES_METHOD(U64, N * sizeof(Value) > MAX_U32)
+	ANKI_ARRAY_SIZE_IN_BYTES_METHOD(U8, kSize * sizeof(Value) <= kMaxU8)
+	ANKI_ARRAY_SIZE_IN_BYTES_METHOD(U16, kSize * sizeof(Value) > kMaxU8 && kSize * sizeof(Value) <= kMaxU16)
+	ANKI_ARRAY_SIZE_IN_BYTES_METHOD(U32, kSize * sizeof(Value) > kMaxU16 && kSize * sizeof(Value) <= kMaxU32)
+	ANKI_ARRAY_SIZE_IN_BYTES_METHOD(U64, kSize * sizeof(Value) > kMaxU32)
 #undef ANKI_ARRAY_SIZE_IN_BYTES_METHOD
 };
+
+// Some trick stolen from GCC's std::array. It allows deduction of Array's template params. For example you can write:
+// Array a{1, 2, 3};
+template<typename TFirst, typename... TRest>
+Array(TFirst, TRest...)
+	-> Array<std::enable_if_t<(std::is_same_v<TFirst, TRest> && ...), TFirst>, 1 + sizeof...(TRest)>;
 
 /// 2D Array. @code Array2d<X, 10, 2> a; @endcode is equivelent to @code X a[10][2]; @endcode
 template<typename T, PtrSize I, PtrSize J>

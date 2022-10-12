@@ -15,14 +15,14 @@ DeveloperConsole::~DeveloperConsole()
 	{
 		LogItem* item = &m_logItems.getFront();
 		m_logItems.popFront();
-		item->m_msg.destroy(m_alloc);
-		m_alloc.deleteInstance(item);
+		item->m_threadName.destroy(getMemoryPool());
+		item->m_msg.destroy(getMemoryPool());
+		deleteInstance(getMemoryPool(), item);
 	}
 }
 
-Error DeveloperConsole::init(AllocAlignedCallback allocCb, void* allocCbUserData, ScriptManager* scriptManager)
+Error DeveloperConsole::init(ScriptManager* scriptManager)
 {
-	m_alloc = HeapAllocator<U8>(allocCb, allocCbUserData, "DeveloperConsole");
 	zeroMemory(m_inputText);
 
 	ANKI_CHECK(m_manager->newInstance(m_font, "EngineAssets/UbuntuMonoRegular.ttf", Array<U32, 1>{16}));
@@ -32,7 +32,7 @@ Error DeveloperConsole::init(AllocAlignedCallback allocCb, void* allocCbUserData
 
 	ANKI_CHECK(m_scriptEnv.init(scriptManager));
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void DeveloperConsole::build(CanvasPtr ctx)
@@ -57,24 +57,24 @@ void DeveloperConsole::build(CanvasPtr ctx)
 	{
 		switch(item.m_type)
 		{
-		case LoggerMessageType::NORMAL:
+		case LoggerMessageType::kNormal:
 			ImGui::PushStyleColor(ImGuiCol_Text, Vec4(0.0f, 1.0f, 0.0f, 1.0f));
 			break;
-		case LoggerMessageType::ERROR:
-		case LoggerMessageType::FATAL:
+		case LoggerMessageType::kError:
+		case LoggerMessageType::kFatal:
 			ImGui::PushStyleColor(ImGuiCol_Text, Vec4(1.0f, 0.0f, 0.0f, 1.0f));
 			break;
-		case LoggerMessageType::WARNING:
+		case LoggerMessageType::kWarning:
 			ImGui::PushStyleColor(ImGuiCol_Text, Vec4(0.9f, 0.6f, 0.14f, 1.0f));
 			break;
 		default:
 			ANKI_ASSERT(0);
 		}
 
-		static const Array<const char*, static_cast<U>(LoggerMessageType::COUNT)> MSG_TEXT = {"I", "E", "W", "F"};
-		ImGui::TextWrapped("[%s][%s] %s (%s:%d %s)", MSG_TEXT[static_cast<U>(item.m_type)],
+		constexpr Array<const Char*, U(LoggerMessageType::kCount)> kMsgText = {"I", "E", "W", "F"};
+		ImGui::TextWrapped("[%s][%s] %s [%s:%d][%s][%s]", kMsgText[item.m_type],
 						   (item.m_subsystem) ? item.m_subsystem : "N/A ", item.m_msg.cstr(), item.m_file, item.m_line,
-						   item.m_func);
+						   item.m_func, item.m_threadName.cstr());
 
 		ImGui::PopStyleColor();
 	}
@@ -93,7 +93,7 @@ void DeveloperConsole::build(CanvasPtr ctx)
 	// Commands
 	ImGui::Separator();
 	ImGui::PushItemWidth(-1.0f); // Use the whole size
-	if(ImGui::InputText("", &m_inputText[0], m_inputText.getSizeInBytes(), ImGuiInputTextFlags_EnterReturnsTrue,
+	if(ImGui::InputText("##noname", &m_inputText[0], m_inputText.getSizeInBytes(), ImGuiInputTextFlags_EnterReturnsTrue,
 						nullptr, nullptr))
 	{
 		const Error err = m_scriptEnv.evalString(&m_inputText[0]);
@@ -117,12 +117,13 @@ void DeveloperConsole::newLogItem(const LoggerMessageInfo& inf)
 	LogItem* newLogItem;
 
 	// Pop first
-	if(m_logItemCount + 1 > MAX_LOG_ITEMS)
+	if(m_logItemCount + 1 > kMaxLogItems)
 	{
 		LogItem* first = &m_logItems.getFront();
 		m_logItems.popFront();
 
-		first->m_msg.destroy(m_alloc);
+		first->m_msg.destroy(getMemoryPool());
+		first->m_threadName.destroy(getMemoryPool());
 
 		// Re-use the log item
 		newLogItem = first;
@@ -130,14 +131,15 @@ void DeveloperConsole::newLogItem(const LoggerMessageInfo& inf)
 	}
 	else
 	{
-		newLogItem = m_alloc.newInstance<LogItem>();
+		newLogItem = newInstance<LogItem>(getMemoryPool());
 	}
 
 	// Create the new item
 	newLogItem->m_file = inf.m_file;
 	newLogItem->m_func = inf.m_func;
 	newLogItem->m_subsystem = inf.m_subsystem;
-	newLogItem->m_msg.create(m_alloc, inf.m_msg);
+	newLogItem->m_threadName.create(getMemoryPool(), inf.m_threadName);
+	newLogItem->m_msg.create(getMemoryPool(), inf.m_msg);
 	newLogItem->m_line = inf.m_line;
 	newLogItem->m_type = inf.m_type;
 

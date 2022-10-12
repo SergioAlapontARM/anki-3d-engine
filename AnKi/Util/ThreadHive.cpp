@@ -4,10 +4,13 @@
 // http://www.anki3d.org/LICENSE
 
 #include <AnKi/Util/ThreadHive.h>
+#include <AnKi/Util/String.h>
 #include <cstring>
 #include <cstdio>
 
 namespace anki {
+
+Atomic<U32> ThreadHive::m_uuid = {0};
 
 #define ANKI_ENABLE_HIVE_DEBUG_PRINT 0
 
@@ -25,9 +28,9 @@ public:
 	ThreadHive* m_hive;
 
 	/// Constructor
-	Thread(U32 id, ThreadHive* hive, Bool pinToCore)
+	Thread(U32 id, ThreadHive* hive, Bool pinToCore, CString threadName)
 		: m_id(id)
-		, m_thread("anki_threadhive")
+		, m_thread(threadName.cstr())
 		, m_hive(hive)
 	{
 		ANKI_ASSERT(hive);
@@ -41,7 +44,7 @@ private:
 		Thread& self = *static_cast<Thread*>(info.m_userData);
 
 		self.m_hive->threadRun(self.m_id);
-		return Error::NONE;
+		return Error::kNone;
 	}
 };
 
@@ -57,16 +60,20 @@ public:
 	ThreadHiveSemaphore* m_signalSemaphore;
 };
 
-ThreadHive::ThreadHive(U32 threadCount, GenericMemoryPoolAllocator<U8> alloc, Bool pinToCores)
-	: m_slowAlloc(alloc)
-	, m_alloc(alloc.getMemoryPool().getAllocationCallback(), alloc.getMemoryPool().getAllocationCallbackUserData(),
-			  1024 * 4)
+ThreadHive::ThreadHive(U32 threadCount, BaseMemoryPool* pool, Bool pinToCores)
+	: m_slowPool(pool)
+	, m_pool(pool->getAllocationCallback(), pool->getAllocationCallbackUserData(), 4_KB)
 	, m_threadCount(threadCount)
 {
-	m_threads = reinterpret_cast<Thread*>(m_slowAlloc.allocate(sizeof(Thread) * threadCount));
+	m_threads = static_cast<Thread*>(m_slowPool->allocate(sizeof(Thread) * threadCount, alignof(Thread)));
+
+	const U32 uuid = m_uuid.fetchAdd(1);
+
 	for(U32 i = 0; i < threadCount; ++i)
 	{
-		::new(&m_threads[i]) Thread(i, this, pinToCores);
+		Array<Char, 32> threadName;
+		snprintf(&threadName[0], threadName.getSize(), "Hive#%u/#%u", uuid, i);
+		::new(&m_threads[i]) Thread(i, this, pinToCores, &threadName[0]);
 	}
 }
 
@@ -90,7 +97,7 @@ ThreadHive::~ThreadHive()
 			m_threads[threadCount].~Thread();
 		}
 
-		m_slowAlloc.deallocate(static_cast<void*>(m_threads), m_threadCount * sizeof(Thread));
+		m_slowPool->free(static_cast<void*>(m_threads));
 	}
 }
 
@@ -99,7 +106,7 @@ void ThreadHive::submitTasks(ThreadHiveTask* tasks, const U32 taskCount)
 	ANKI_ASSERT(tasks && taskCount > 0);
 
 	// Allocate tasks
-	Task* const htasks = m_alloc.newArray<Task>(taskCount);
+	Task* const htasks = newArray<Task>(m_pool, taskCount);
 
 	// Initialize tasks
 	Task* prevTask = nullptr;
@@ -258,7 +265,7 @@ void ThreadHive::waitAllTasks()
 
 	m_head = nullptr;
 	m_tail = nullptr;
-	m_alloc.getMemoryPool().reset();
+	m_pool.reset();
 
 	ANKI_HIVE_DEBUG_PRINT("mt: done waiting all\n");
 }

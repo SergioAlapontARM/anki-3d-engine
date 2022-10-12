@@ -15,9 +15,9 @@ namespace anki {
 /// The result of a tile allocation.
 enum class TileAllocatorResult : U32
 {
-	CACHED, ///< The tile is cached. No need to re-render it.
-	ALLOCATION_FAILED, ///< No more available tiles.
-	ALLOCATION_SUCCEEDED ///< Allocation succeded but the tile needs update.
+	kCached, ///< The tile is cached. No need to re-render it.
+	kAllocationFailed, ///< No more available tiles.
+	kAllocationSucceded ///< Allocation succeded but the tile needs update.
 };
 
 /// Allocates tiles out of a tilemap suitable for shadow mapping.
@@ -33,7 +33,7 @@ public:
 	TileAllocator& operator=(const TileAllocator&) = delete; // Non-copyable
 
 	/// Initialize the allocator.
-	void init(HeapAllocator<U8> alloc, U32 tileCountX, U32 tileCountY, U32 lodCount, Bool enableCaching);
+	void init(HeapMemoryPool* pool, U32 tileCountX, U32 tileCountY, U32 lodCount, Bool enableCaching);
 
 	/// Allocate some tiles.
 	[[nodiscard]] TileAllocatorResult allocate(Timestamp crntTimestamp, Timestamp lightTimestamp, U64 lightUuid,
@@ -48,7 +48,7 @@ private:
 	/// A HashMap key.
 	class HashMapKey;
 
-	HeapAllocator<U8> m_alloc;
+	HeapMemoryPool* m_pool = nullptr;
 	DynamicArray<Tile> m_allTiles;
 	DynamicArray<U32> m_lodFirstTileIndex;
 

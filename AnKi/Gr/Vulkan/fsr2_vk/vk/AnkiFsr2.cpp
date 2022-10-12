@@ -135,53 +135,53 @@ static Format ffxGetFormatFromSurfaceFormat(FfxSurfaceFormat fmt)
 	{
 
 	case(FFX_SURFACE_FORMAT_R32G32B32A32_TYPELESS):
-		return Format::R32G32B32A32_SFLOAT;
+		return Format::kR32G32B32A32_Sfloat;
 	case(FFX_SURFACE_FORMAT_R32G32B32A32_FLOAT):
-		return Format::R32G32B32A32_SFLOAT;
+		return Format::kR32G32B32A32_Sfloat;
 	case(FFX_SURFACE_FORMAT_R16G16B16A16_FLOAT):
-		return Format::R16G16B16A16_SFLOAT;
+		return Format::kR16G16B16A16_Sfloat;
 	case(FFX_SURFACE_FORMAT_R32G32_FLOAT):
-		return Format::R32G32_SFLOAT;
+		return Format::kR32G32_Sfloat;
 	case(FFX_SURFACE_FORMAT_R32_UINT):
-		return Format::R32_UINT;
+		return Format::kR32_Uint;
 	case(FFX_SURFACE_FORMAT_R8G8B8A8_TYPELESS):
-		return Format::R8G8B8A8_UNORM;
+		return Format::kR8G8B8A8_Unorm;
 	case(FFX_SURFACE_FORMAT_R8G8B8A8_UNORM):
-		return Format::R8G8B8A8_UNORM;
+		return Format::kR8G8B8A8_Unorm;
 	case(FFX_SURFACE_FORMAT_R11G11B10_FLOAT):
-		return Format::B10G11R11_UFLOAT_PACK32;
+		return Format::kB10G11R11_Ufloat_Pack32;
 	case(FFX_SURFACE_FORMAT_R16G16_FLOAT):
-		return Format::R16G16_SFLOAT;
+		return Format::kR16G16_Sfloat;
 	case(FFX_SURFACE_FORMAT_R16G16_UINT):
-		return Format::R16G16_UINT;
+		return Format::kR16G16_Uint;
 	case(FFX_SURFACE_FORMAT_R16_FLOAT):
-		return Format::R16_SFLOAT;
+		return Format::kR16_Sfloat;
 	case(FFX_SURFACE_FORMAT_R16_UINT):
-		return Format::R16_UINT;
+		return Format::kR16_Uint;
 	case(FFX_SURFACE_FORMAT_R16_UNORM):
-		return Format::R16_UNORM;
+		return Format::kR16_Unorm;
 	case(FFX_SURFACE_FORMAT_R16_SNORM):
-		return Format::R16_SNORM;
+		return Format::kR16_Snorm;
 	case(FFX_SURFACE_FORMAT_R8_UNORM):
-		return Format::R8_UNORM;
+		return Format::kR8_Unorm;
 	case(FFX_SURFACE_FORMAT_R32_FLOAT):
-		return Format::R32_SFLOAT;
+		return Format::kR32_Sfloat;
 	default:
-		return Format::NONE;
+		return Format::kNone;
 	}
 }
 
 static TextureUsageBit ffxGetAnkiTextureUsageFromResourceUsage(FfxResourceUsage flags)
 {
-	TextureUsageBit usageFlags(TextureUsageBit::TRANSFER_DESTINATION | TextureUsageBit::ALL_SAMPLED
-							   | TextureUsageBit::IMAGE_COMPUTE_READ);
+	TextureUsageBit usageFlags(TextureUsageBit::kTransferDestination | TextureUsageBit::kFramebufferRead
+							   | TextureUsageBit::kImageComputeRead);
 	if(flags & FFX_RESOURCE_USAGE_RENDERTARGET)
 	{
-		usageFlags |= TextureUsageBit::ALL_FRAMEBUFFER_ATTACHMENT;
+		usageFlags |= TextureUsageBit::kAllFramebuffer;
 	}
 	if(flags & FFX_RESOURCE_USAGE_UAV)
 	{
-		usageFlags |= TextureUsageBit::IMAGE_COMPUTE_READ | TextureUsageBit::IMAGE_COMPUTE_WRITE;
+		usageFlags |= TextureUsageBit::kImageComputeRead | TextureUsageBit::kImageComputeWrite;
 	}
 
 	return usageFlags;
@@ -191,9 +191,10 @@ static BufferUsageBit ffxGetAnkiBufferUsageFlagsFromResourceUsage(FfxResourceUsa
 {
 	if(flags & FFX_RESOURCE_USAGE_UAV)
 	{
-		return BufferUsageBit::STORAGE_COMPUTE_READ | BufferUsageBit::STORAGE_COMPUTE_WRITE | BufferUsageBit::ALL_TRANSFER;
+		return BufferUsageBit::kStorageComputeRead | BufferUsageBit::kStorageComputeWrite
+			   | BufferUsageBit::kAllTransfer;
 	}
-	return BufferUsageBit::ALL_UNIFORM;
+	return BufferUsageBit::kAllUniform;
 }
 
 static TextureUsageBit ffxGetTextureUsageFromResourceState(FfxResourceStates state)
@@ -202,17 +203,17 @@ static TextureUsageBit ffxGetTextureUsageFromResourceState(FfxResourceStates sta
 	{
 
 	case(FFX_RESOURCE_STATE_GENERIC_READ):
-		return TextureUsageBit::SAMPLED_COMPUTE | TextureUsageBit::IMAGE_COMPUTE_READ;
+		return TextureUsageBit::kSampledCompute | TextureUsageBit::kImageComputeRead;
 	case(FFX_RESOURCE_STATE_UNORDERED_ACCESS):
-		return TextureUsageBit::IMAGE_COMPUTE_READ | TextureUsageBit::IMAGE_COMPUTE_WRITE;
+		return TextureUsageBit::kImageComputeRead | TextureUsageBit::kImageComputeWrite;
 	case(FFX_RESOURCE_STATE_COMPUTE_READ):
-		return TextureUsageBit::SAMPLED_COMPUTE;
+		return TextureUsageBit::kSampledCompute;
 	case FFX_RESOURCE_STATE_COPY_SRC:
-		return TextureUsageBit::ALL_GRAPHICS;
+		return TextureUsageBit::kAllGraphics;
 	case FFX_RESOURCE_STATE_COPY_DEST:
-		return TextureUsageBit::TRANSFER_DESTINATION;
+		return TextureUsageBit::kTransferDestination;
 	default:
-		return TextureUsageBit::ALL_GRAPHICS;
+		return TextureUsageBit::kAllGraphics;
 	}
 }
 
@@ -221,17 +222,17 @@ static BufferUsageBit ffxGetBufferUsageFromResourceState(FfxResourceStates state
 	switch(state)
 	{
 	case(FFX_RESOURCE_STATE_GENERIC_READ):
-		return BufferUsageBit::STORAGE_COMPUTE_READ | BufferUsageBit::TEXTURE_COMPUTE_READ;
+		return BufferUsageBit::kStorageComputeRead | BufferUsageBit::kTextureComputeRead;
 	case(FFX_RESOURCE_STATE_UNORDERED_ACCESS):
-		return BufferUsageBit::STORAGE_COMPUTE_READ | BufferUsageBit::STORAGE_COMPUTE_WRITE;
+		return BufferUsageBit::kStorageComputeRead | BufferUsageBit::kStorageComputeWrite;
 	case(FFX_RESOURCE_STATE_COMPUTE_READ):
-		return BufferUsageBit::STORAGE_COMPUTE_READ | BufferUsageBit::TEXTURE_COMPUTE_READ;
+		return BufferUsageBit::kStorageComputeRead | BufferUsageBit::kTextureComputeRead;
 	case FFX_RESOURCE_STATE_COPY_SRC:
-		return BufferUsageBit::TRANSFER_SOURCE;
+		return BufferUsageBit::kTransferSource;
 	case FFX_RESOURCE_STATE_COPY_DEST:
-		return BufferUsageBit::TRANSFER_DESTINATION;
+		return BufferUsageBit::kTransferDestination;
 	default:
-		return BufferUsageBit::ALL_GRAPHICS;
+		return BufferUsageBit::kAllGraphics;
 	}
 }
 
@@ -240,33 +241,33 @@ static FfxSurfaceFormat ffxGetSurfaceFormat(Format fmt)
 	switch(fmt)
 	{
 
-	case(Format::R32G32B32A32_SFLOAT):
+	case(Format::kR32G32B32A32_Sfloat):
 		return FFX_SURFACE_FORMAT_R32G32B32A32_FLOAT;
-	case(Format::R16G16B16A16_SFLOAT):
+	case(Format::kR16G16B16A16_Sfloat):
 		return FFX_SURFACE_FORMAT_R16G16B16A16_FLOAT;
-	case(Format::R32G32_SFLOAT):
+	case(Format::kR32G32_Sfloat):
 		return FFX_SURFACE_FORMAT_R32G32_FLOAT;
-	case(Format::R32_UINT):
+	case(Format::kR32_Uint):
 		return FFX_SURFACE_FORMAT_R32_UINT;
-	case(Format::R8G8B8A8_UNORM):
+	case(Format::kR8G8B8A8_Unorm):
 		return FFX_SURFACE_FORMAT_R8G8B8A8_UNORM;
-	case(Format::B10G11R11_UFLOAT_PACK32):
+	case(Format::kB10G11R11_Ufloat_Pack32):
 		return FFX_SURFACE_FORMAT_R11G11B10_FLOAT;
-	case(Format::R16G16_SFLOAT):
+	case(Format::kR16G16_Sfloat):
 		return FFX_SURFACE_FORMAT_R16G16_FLOAT;
-	case(Format::R16G16_UINT):
+	case(Format::kR16G16_Uint):
 		return FFX_SURFACE_FORMAT_R16G16_UINT;
-	case(Format::R16_SFLOAT):
+	case(Format::kR16_Sfloat):
 		return FFX_SURFACE_FORMAT_R16_FLOAT;
-	case(Format::R16_UINT):
+	case(Format::kR16_Uint):
 		return FFX_SURFACE_FORMAT_R16_UINT;
-	case(Format::R16_UNORM):
+	case(Format::kR16_Unorm):
 		return FFX_SURFACE_FORMAT_R16_UNORM;
-	case(Format::R16_SNORM):
+	case(Format::kR16_Snorm):
 		return FFX_SURFACE_FORMAT_R16_SNORM;
-	case(Format::R8_UNORM):
+	case(Format::kR8_Unorm):
 		return FFX_SURFACE_FORMAT_R8_UNORM;
-	case(Format::R32_SFLOAT):
+	case(Format::kR32_Sfloat):
 		return FFX_SURFACE_FORMAT_R32_FLOAT;
 	default:
 		return FFX_SURFACE_FORMAT_UNKNOWN;
@@ -400,7 +401,7 @@ FFX_API FfxCommandList ffxGetCommandList(const CommandBufferPtr& cmdBuf)
 
 FfxResource ffxGetTextureResource(const TexturePtr& texture,
 									const TextureViewPtr& textureView, uint32_t width,
-									uint32_t height, wchar_t* name, FfxResourceStates state)
+								  uint32_t height, [[maybe_unused]] wchar_t* name, FfxResourceStates state)
 {
     FfxResource resource = {};
 	resource.resource = reinterpret_cast<void*>(texture.get());
@@ -416,11 +417,11 @@ FfxResource ffxGetTextureResource(const TexturePtr& texture,
 
     switch(texture->getFormat())
     {
-	case Format::D16_UNORM:
-	case Format::D32_SFLOAT:
-	case Format::D16_UNORM_S8_UINT:
-	case Format::D24_UNORM_S8_UINT:
-	case Format::D32_SFLOAT_S8_UINT:
+	case Format::kD16_Unorm:
+	case Format::kD32_Sfloat:
+	case Format::kD16_Unorm_S8_Uint:
+	case Format::kD24_Unorm_S8_Uint:
+	case Format::kD32_Sfloat_S8_Uint:
     {
         resource.isDepth = true;
         break;
@@ -532,7 +533,7 @@ FfxErrorCode ankiFsr2CreateDevice(FfxFsr2Interface* backendInterface, [[maybe_un
 	ResourceManager& resManager = backendContext.m_r->getResourceManager();
 
 #	define ANKI_LOAD_FSR2_SHADER_PROGRAM(PASS, SHADER_PATH)														\
-		if(resManager.loadResource(SHADER_PATH, backendContext.m_shaders[PASS].m_prog) != Error::NONE)			\
+		if(resManager.loadResource(SHADER_PATH, backendContext.m_shaders[PASS].m_prog) != Error::kNone)			\
 		{																										\
 			ANKI_GR_LOGE("Failed to load Fsr2 shader");															\
 		}																										\
@@ -581,18 +582,18 @@ Error ankiFsr2CreateBufferResource(const FfxCreateResourceDescription& createRes
 #	ifdef _DEBUG
 	buffInit.setName(res.m_resourceName);
 #	endif
-	buffInit.m_mapAccess = BufferMapAccessBit::READ;
+	buffInit.m_mapAccess = BufferMapAccessBit::kRead;
 	buffInit.m_size = createResourceDescription.resourceDescription.width;
 	buffInit.m_usage = ffxGetAnkiBufferUsageFlagsFromResourceUsage(createResourceDescription.usage);
 	res.m_bufferResource = grManager.newBuffer(buffInit);
 
 	if(createResourceDescription.initData)
 	{
-		void* bufferAddr = res.m_bufferResource->map(0, buffInit.m_size, BufferMapAccessBit::READ);
+		void* bufferAddr = res.m_bufferResource->map(0, buffInit.m_size, BufferMapAccessBit::kRead);
 		memcpy(bufferAddr, createResourceDescription.initData, createResourceDescription.initDataSize);
 		res.m_bufferResource->unmap();
 	}
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error ankiFsr2CreateTextureResource(const FfxCreateResourceDescription& createResourceDescription,
@@ -614,7 +615,7 @@ Error ankiFsr2CreateTextureResource(const FfxCreateResourceDescription& createRe
 	texInit.m_format = ffxGetFormatFromSurfaceFormat(createResourceDescription.resourceDescription.format);
 	texInit.m_usage = ffxGetAnkiTextureUsageFromResourceUsage(createResourceDescription.usage);
 	texInit.m_usage |=
-		createResourceDescription.initData ? TextureUsageBit::TRANSFER_DESTINATION : TextureUsageBit::NONE;
+		createResourceDescription.initData ? TextureUsageBit::kTransferDestination : TextureUsageBit::kNone;
 	texInit.m_type = static_cast<TextureType>(createResourceDescription.resourceDescription.type - 1u);
 	texInit.m_mipmapCount = static_cast<U8>(res.resourceDescription.mipCount);
 	texInit.m_samples = 1u;
@@ -655,16 +656,22 @@ Error ankiFsr2CreateTextureResource(const FfxCreateResourceDescription& createRe
 
 		const TextureSurfaceInfo surf(0, 0, 0, 0);
 		CommandBufferInitInfo cmdbInit;
-		cmdbInit.m_flags = CommandBufferFlag::GENERAL_WORK | CommandBufferFlag::SMALL_BATCH;
+		cmdbInit.m_flags = CommandBufferFlag::kGeneralWork | CommandBufferFlag::kSmallBatch;
 		CommandBufferPtr cmdb = grManager.newCommandBuffer(cmdbInit);
 
-		cmdb->setTextureSurfaceBarrier(res.m_imageResource, TextureUsageBit::NONE,
-									   TextureUsageBit::TRANSFER_DESTINATION,
-									   surf);
+		Array<TextureBarrierInfo, 1> textureBarriers;
+		textureBarriers[0] = {res.m_imageResource.get(), TextureUsageBit::kNone, TextureUsageBit::kTransferDestination};
+		cmdb->setPipelineBarrier(ConstWeakArray<TextureBarrierInfo>(textureBarriers),
+									ConstWeakArray<BufferBarrierInfo>(nullptr, 0),
+									ConstWeakArray<AccelerationStructureBarrierInfo>(nullptr, 0));
 		cmdb->copyBufferToTextureView(handle.getBuffer(), handle.getOffset(), handle.getRange(),
 									  res.m_singleMipImageViews[0]);
 		const TextureUsageBit initialUsage = ffxGetTextureUsageFromResourceState(createResourceDescription.initalState);
-		cmdb->setTextureSurfaceBarrier(res.m_imageResource, TextureUsageBit::TRANSFER_DESTINATION, initialUsage, surf);
+
+		textureBarriers[0] = {res.m_imageResource.get(), TextureUsageBit::kTransferDestination, initialUsage};
+		cmdb->setPipelineBarrier(ConstWeakArray<TextureBarrierInfo>(textureBarriers),
+									ConstWeakArray<BufferBarrierInfo>(nullptr, 0),
+									ConstWeakArray<AccelerationStructureBarrierInfo>(nullptr, 0));
 		FencePtr fence;
 		cmdb->flush({}, &fence);
 
@@ -673,7 +680,7 @@ Error ankiFsr2CreateTextureResource(const FfxCreateResourceDescription& createRe
 		res.state = createResourceDescription.initalState;
 		res.undefined = false;
 	}
-	return Error::NONE;
+	return Error::kNone;
 }
 
 // create a internal resource that will stay alive until effect gets shut down
@@ -713,7 +720,7 @@ FfxErrorCode ankiFsr2CreateResource(
 	{
 	case FFX_RESOURCE_TYPE_BUFFER:
 	{
-		if(ankiFsr2CreateBufferResource(*createResourceDescription, backendContext, res) != Error::NONE)
+		if(ankiFsr2CreateBufferResource(*createResourceDescription, backendContext, res) != Error::kNone)
 		{
 			return FFX_ERROR_BACKEND_API_ERROR;
 		}
@@ -723,7 +730,7 @@ FfxErrorCode ankiFsr2CreateResource(
 	case FFX_RESOURCE_TYPE_TEXTURE2D:
 	case FFX_RESOURCE_TYPE_TEXTURE3D:
 	{
-		if(ankiFsr2CreateTextureResource(*createResourceDescription, backendContext, res) != Error::NONE)
+		if(ankiFsr2CreateTextureResource(*createResourceDescription, backendContext, res) != Error::kNone)
 		{
 			return FFX_ERROR_BACKEND_API_ERROR;
 		}
@@ -822,18 +829,27 @@ void ankiFsr2AddBarrier(CommandBufferPtr& cmdBuffer, AnkiFsr2BackendCtx& backend
 	if(ffxResource.resourceDescription.type == FFX_RESOURCE_TYPE_BUFFER)
 	{
 		const BufferUsageBit prevUsage =
-			ffxResource.undefined ? BufferUsageBit::NONE : ffxGetBufferUsageFromResourceState(ffxResource.state);
+			ffxResource.undefined ? BufferUsageBit::kNone : ffxGetBufferUsageFromResourceState(ffxResource.state);
 		const BufferUsageBit nextUsage = ffxGetBufferUsageFromResourceState(newState);
-		cmdBuffer->setBufferBarrier(ffxResource.m_bufferResource, prevUsage, nextUsage, 0,
-									ffxResource.m_bufferResource->getSize());
+
+		Array<BufferBarrierInfo, 1> bufferBarriers;
+		bufferBarriers[0] = {ffxResource.m_bufferResource.get(), prevUsage, nextUsage, 0,
+							 ffxResource.m_bufferResource->getSize()};
+		cmdBuffer->setPipelineBarrier(ConstWeakArray<TextureBarrierInfo>(nullptr, 0),
+								 ConstWeakArray<BufferBarrierInfo>(bufferBarriers),
+								 ConstWeakArray<AccelerationStructureBarrierInfo>(nullptr, 0));
+
 	}
 	else
 	{
-		const TextureUsageBit prevUsage = ffxResource.undefined ? TextureUsageBit::NONE : ffxGetTextureUsageFromResourceState(ffxResource.state);
+		const TextureUsageBit prevUsage = ffxResource.undefined ? TextureUsageBit::kNone : ffxGetTextureUsageFromResourceState(ffxResource.state);
 		const TextureUsageBit nextUsage = ffxGetTextureUsageFromResourceState(newState);
-		TextureSubresourceInfo info(TextureSurfaceInfo(0, 0, 0, 0));
-		info.m_mipmapCount = ffxResource.resourceDescription.mipCount;
-		cmdBuffer->setTextureBarrier(ffxResource.m_imageResource, prevUsage, nextUsage, info);
+		Array<TextureBarrierInfo, 1> textureBarriers;
+		textureBarriers[0] = {ffxResource.m_imageResource.get(), prevUsage, nextUsage};
+		textureBarriers[0].m_subresource.m_mipmapCount = ffxResource.resourceDescription.mipCount;
+		cmdBuffer->setPipelineBarrier(ConstWeakArray<TextureBarrierInfo>(textureBarriers),
+								 ConstWeakArray<BufferBarrierInfo>(nullptr, 0),
+								 ConstWeakArray<AccelerationStructureBarrierInfo>(nullptr, 0));
 	}
 
 	ffxResource.undefined = false;
@@ -876,7 +892,7 @@ static FfxErrorCode ankiFsr2ExecuteRenderJobCompute(AnkiFsr2BackendCtx& backendC
 		const void* uniformData = job.computeJobDescriptor.cbs[i].data;
 		const U32 set = 1;
 		const U32 binding = job.computeJobDescriptor.pipeline.cbResourceBindings[i].slotIndex;
-		void* dstPtr = backendContext.m_r->getStagingGpuMemory().allocateFrame(reqSize, StagingGpuMemoryType::UNIFORM, token);
+		void* dstPtr = backendContext.m_r->getStagingGpuMemory().allocateFrame(reqSize, StagingGpuMemoryType::kUniform, token);
 		memcpy(dstPtr, uniformData, reqSize);
 		cmdBuffer->bindUniformBuffer(set, binding, token.m_buffer, token.m_offset, token.m_range);
     }
@@ -946,7 +962,7 @@ FfxErrorCode ankiFsr2ExecuteRenderJobs(FfxFsr2Interface* backendInterface, FfxCo
         case FFX_RENDER_JOB_COPY:
         {
 			ANKI_ASSERT(0 && "With our integration no Copy jobs should be needed");
-			return Error::FUNCTION_FAILED;
+			return Error::kFunctionFailed;
 
             break;
         }

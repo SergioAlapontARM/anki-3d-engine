@@ -29,15 +29,15 @@ Error BinarySerializer::doDynamicArrayBasicType(const void* arr, PtrSize size, U
 		PointerInfo pinfo;
 		pinfo.m_filePos = structFilePos + memberOffset;
 		pinfo.m_value = arrayFilePos - m_beginOfDataFilePos;
-		m_pointerFilePositions.emplaceBack(m_alloc, pinfo);
+		m_pointerFilePositions.emplaceBack(*m_pool, pinfo);
 
 		// Write the array
-		ANKI_CHECK(m_file->seek(arrayFilePos, FileSeekOrigin::BEGINNING));
+		ANKI_CHECK(m_file->seek(arrayFilePos, FileSeekOrigin::kBeginning));
 		ANKI_CHECK(m_file->write(arr, size));
 	}
 
 	check();
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <AnKi/Util/Allocator.h>
+#include <AnKi/Util/MemoryPool.h>
 #include <AnKi/Util/Functions.h>
 #include <AnKi/Util/SparseArray.h>
 
@@ -63,34 +63,45 @@ public:
 	}
 };
 
+/// SparseArray configuration. See SparseArray docs for details.
+/// @memberof HashMap
+class HashMapSparseArrayConfig
+{
+public:
+	using Index = U64;
+
+	static constexpr Index getInitialStorageSize()
+	{
+		return 64;
+	}
+
+	static constexpr U32 getLinearProbingCount()
+	{
+		return 8;
+	}
+
+	static constexpr F32 getMaxLoadFactor()
+	{
+		return 0.8f;
+	}
+};
+
 /// Hash map template.
-template<typename TKey, typename TValue, typename THasher = DefaultHasher<TKey>>
+template<typename TKey, typename TValue, typename THasher = DefaultHasher<TKey>,
+		 typename TSparseArrayConfig = HashMapSparseArrayConfig>
 class HashMap
 {
 public:
 	// Typedefs
-	using SparseArrayType = SparseArray<TValue, U64>;
+	using SparseArrayType = SparseArray<TValue, TSparseArrayConfig>;
 	using Value = TValue;
 	using Key = TKey;
 	using Hasher = THasher;
 	using Iterator = typename SparseArrayType::Iterator;
 	using ConstIterator = typename SparseArrayType::ConstIterator;
 
-	// Consts
-	/// @see SparseArray::INITIAL_STORAGE_SIZE
-	static constexpr U32 INITIAL_STORAGE_SIZE = SparseArrayType::INITIAL_STORAGE_SIZE;
-	/// @see SparseArray::LINEAR_PROBING_COUNT
-	static constexpr U32 LINEAR_PROBING_COUNT = SparseArrayType::LINEAR_PROBING_COUNT;
-	/// @see SparseArray::MAX_LOAD_FACTOR
-	static constexpr F32 MAX_LOAD_FACTOR = SparseArrayType::MAX_LOAD_FACTOR;
-
 	/// Default constructor.
-	/// @copy doc SparseArray::SparseArray
-	HashMap(U32 initialStorageSize = INITIAL_STORAGE_SIZE, U32 probeCount = LINEAR_PROBING_COUNT,
-			F32 maxLoadFactor = MAX_LOAD_FACTOR)
-		: m_sparseArr(initialStorageSize, probeCount, maxLoadFactor)
-	{
-	}
+	HashMap() = default;
 
 	/// Move.
 	HashMap(HashMap&& b)
@@ -171,25 +182,25 @@ public:
 	}
 
 	/// Destroy the list.
-	template<typename TAllocator>
-	void destroy(TAllocator alloc)
+	template<typename TMemPool>
+	void destroy(TMemPool& pool)
 	{
-		m_sparseArr.destroy(alloc);
+		m_sparseArr.destroy(pool);
 	}
 
 	/// Construct an element inside the map.
-	template<typename TAllocator, typename... TArgs>
-	Iterator emplace(TAllocator alloc, const TKey& key, TArgs&&... args)
+	template<typename TMemPool, typename... TArgs>
+	Iterator emplace(TMemPool& pool, const TKey& key, TArgs&&... args)
 	{
 		const U64 hash = THasher()(key);
-		return m_sparseArr.emplace(alloc, hash, std::forward<TArgs>(args)...);
+		return m_sparseArr.emplace(pool, hash, std::forward<TArgs>(args)...);
 	}
 
 	/// Erase element.
-	template<typename TAllocator>
-	void erase(TAllocator alloc, Iterator it)
+	template<typename TMemPool>
+	void erase(TMemPool& pool, Iterator it)
 	{
-		m_sparseArr.erase(alloc, it);
+		m_sparseArr.erase(pool, it);
 	}
 
 	/// Find a value using a key.
@@ -211,50 +222,50 @@ protected:
 };
 
 /// Hash map template with automatic cleanup.
-template<typename TKey, typename TValue, typename THasher = DefaultHasher<TKey>>
-class HashMapAuto : public HashMap<TKey, TValue, THasher>
+template<typename TKey, typename TValue, typename THasher = DefaultHasher<TKey>,
+		 typename TSparseArrayConfig = HashMapSparseArrayConfig,
+		 typename TMemPool = MemoryPoolPtrWrapper<BaseMemoryPool>>
+class HashMapRaii : public HashMap<TKey, TValue, THasher, TSparseArrayConfig>
 {
 public:
-	using Base = HashMap<TKey, TValue, THasher>;
+	using Base = HashMap<TKey, TValue, THasher, TSparseArrayConfig>;
+	using MemoryPool = TMemPool;
 
 	/// Default constructor.
-	/// @copy doc SparseArray::SparseArray
-	HashMapAuto(const GenericMemoryPoolAllocator<U8>& alloc, U32 initialStorageSize = Base::INITIAL_STORAGE_SIZE,
-				U32 probeCount = Base::LINEAR_PROBING_COUNT, F32 maxLoadFactor = Base::MAX_LOAD_FACTOR)
-		: Base(initialStorageSize, probeCount, maxLoadFactor)
-		, m_alloc(alloc)
+	HashMapRaii(const TMemPool& pool)
+		: m_pool(pool)
 	{
 	}
 
 	/// Move.
-	HashMapAuto(HashMapAuto&& b)
+	HashMapRaii(HashMapRaii&& b)
 	{
 		*this = std::move(b);
 	}
 
 	/// Copy.
-	HashMapAuto(const HashMapAuto& b)
+	HashMapRaii(const HashMapRaii& b)
 		: Base()
 	{
 		copy(b);
 	}
 
 	/// Destructor.
-	~HashMapAuto()
+	~HashMapRaii()
 	{
 		destroy();
 	}
 
 	/// Move.
-	HashMapAuto& operator=(HashMapAuto&& b)
+	HashMapRaii& operator=(HashMapRaii&& b)
 	{
-		std::move(*static_cast<HashMapAuto>(this));
-		m_alloc = std::move(b.m_alloc);
+		std::move(*static_cast<HashMapRaii>(this));
+		m_pool = std::move(b.m_pool);
 		return *this;
 	}
 
 	/// Copy.
-	HashMapAuto& operator=(const HashMapAuto& b)
+	HashMapRaii& operator=(const HashMapRaii& b)
 	{
 		copy(b);
 		return *this;
@@ -264,29 +275,29 @@ public:
 	template<typename... TArgs>
 	typename Base::Iterator emplace(const TKey& key, TArgs&&... args)
 	{
-		return Base::emplace(m_alloc, key, std::forward<TArgs>(args)...);
+		return Base::emplace(m_pool, key, std::forward<TArgs>(args)...);
 	}
 
 	/// Erase element.
 	void erase(typename Base::Iterator it)
 	{
-		Base::erase(m_alloc, it);
+		Base::erase(m_pool, it);
 	}
 
 	/// Clean up the map.
 	void destroy()
 	{
-		Base::destroy(m_alloc);
+		Base::destroy(m_pool);
 	}
 
 private:
-	GenericMemoryPoolAllocator<U8> m_alloc;
+	MemoryPool m_pool;
 
-	void copy(const HashMapAuto& b)
+	void copy(const HashMapRaii& b)
 	{
 		destroy();
-		m_alloc = b.m_alloc;
-		b.m_sparseArr.clone(m_alloc, Base::m_sparseArr);
+		m_pool = b.m_pool;
+		b.m_sparseArr.clone(m_pool, Base::m_sparseArr);
 	}
 };
 /// @}

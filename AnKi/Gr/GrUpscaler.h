@@ -8,6 +8,7 @@
 #include <AnKi/Gr/GrObject.h>
 #include <AnKi/Math.h>
 #include <AnKi/Util/WeakArray.h>
+#include <AnKi/Util/Enum.h>
 
 namespace anki {
 
@@ -19,19 +20,19 @@ class Renderer;
 /// Different upscalers supported internally by GrUpscaler
 enum class GrUpscalerType : U8
 {
-	DLSS_2 = 0,
-	FSR_2,
-	COUNT
+	kDlss2 = 0,
+	kFsr2,
+	kCount
 };
 
 /// Quality preset to be used by the upscaler if available
 enum class GrUpscalerQualityMode : U8
 {
-	PERFORMANCE,
-	BALANCED,
-	QUALITY,
+	kPerformance,
+	kBalanced,
+	kQuality,
 
-	COUNT
+	kCount
 };
 ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(GrUpscalerQualityMode)
 
@@ -41,8 +42,8 @@ class GrUpscalerInitInfo : public GrBaseInitInfo
 public:
 	UVec2 m_sourceTextureResolution = UVec2(0u);
 	UVec2 m_targetTextureResolution = UVec2(0u);
-	GrUpscalerType m_upscalerType = GrUpscalerType::COUNT;
-	GrUpscalerQualityMode m_qualityMode = GrUpscalerQualityMode::PERFORMANCE;
+	GrUpscalerType m_upscalerType = GrUpscalerType::kCount;
+	GrUpscalerQualityMode m_qualityMode = GrUpscalerQualityMode::kPerformance;
 	Renderer* m_r = nullptr;
 };
 
@@ -51,20 +52,20 @@ class GrUpscaler : public GrObject
 	ANKI_GR_OBJECT
 
 public:
-	static constexpr GrObjectType CLASS_TYPE = GrObjectType::GR_UPSCALER;
+	static constexpr GrObjectType kClassType = GrObjectType::kGrUpscaler;
 
 	GrUpscalerType getUpscalerType() const
 	{
-		ANKI_ASSERT(m_upscalerType != GrUpscalerType::COUNT);
+		ANKI_ASSERT(m_upscalerType != GrUpscalerType::kCount);
 		return m_upscalerType;
 	}
 
 protected:
-	GrUpscalerType m_upscalerType = GrUpscalerType::COUNT;
+	GrUpscalerType m_upscalerType = GrUpscalerType::kCount;
 
 	/// Construct.
 	GrUpscaler(GrManager* manager, CString name)
-		: GrObject(manager, CLASS_TYPE, name)
+		: GrObject(manager, kClassType, name)
 	{
 	}
 

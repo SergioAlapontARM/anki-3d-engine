@@ -31,9 +31,9 @@ Error VolumetricFog::init()
 	ANKI_CHECK(getResourceManager().loadResource("ShaderBinaries/VolumetricFogAccumulation.ankiprogbin", m_prog));
 
 	ShaderProgramResourceVariantInitInfo variantInitInfo(m_prog);
-	variantInitInfo.addConstant("VOLUME_SIZE", UVec3(m_volumeSize[0], m_volumeSize[1], m_volumeSize[2]));
-	variantInitInfo.addConstant("Z_SPLIT_COUNT", m_r->getZSplitCount());
-	variantInitInfo.addConstant("FINAL_Z_SPLIT", m_finalZSplit);
+	variantInitInfo.addConstant("kVolumeSize", UVec3(m_volumeSize[0], m_volumeSize[1], m_volumeSize[2]));
+	variantInitInfo.addConstant("kZSplitCount", m_r->getZSplitCount());
+	variantInitInfo.addConstant("kFinalZSplit", m_finalZSplit);
 
 	const ShaderProgramResourceVariant* variant;
 	m_prog->getOrCreateVariant(variantInitInfo, variant);
@@ -43,12 +43,12 @@ Error VolumetricFog::init()
 
 	// RT descr
 	m_rtDescr =
-		m_r->create2DRenderTargetDescription(m_volumeSize[0], m_volumeSize[1], Format::R16G16B16A16_SFLOAT, "Fog");
+		m_r->create2DRenderTargetDescription(m_volumeSize[0], m_volumeSize[1], Format::kR16G16B16A16_Sfloat, "Fog");
 	m_rtDescr.m_depth = m_volumeSize[2];
-	m_rtDescr.m_type = TextureType::_3D;
+	m_rtDescr.m_type = TextureType::k3D;
 	m_rtDescr.bake();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void VolumetricFog::populateRenderGraph(RenderingContext& ctx)
@@ -59,8 +59,8 @@ void VolumetricFog::populateRenderGraph(RenderingContext& ctx)
 
 	ComputeRenderPassDescription& pass = rgraph.newComputeRenderPass("Vol fog");
 
-	pass.newDependency({m_runCtx.m_rt, TextureUsageBit::IMAGE_COMPUTE_WRITE});
-	pass.newDependency({m_r->getVolumetricLightingAccumulation().getRt(), TextureUsageBit::SAMPLED_COMPUTE});
+	pass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kImageComputeWrite);
+	pass.newTextureDependency(m_r->getVolumetricLightingAccumulation().getRt(), TextureUsageBit::kSampledCompute);
 
 	pass.setWork([this, &ctx](RenderPassWorkContext& rgraphCtx) -> void {
 		CommandBufferPtr& cmdb = rgraphCtx.m_commandBuffer;

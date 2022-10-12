@@ -8,6 +8,7 @@
 #include <AnKi/Resource/ResourceObject.h>
 #include <AnKi/Math.h>
 #include <AnKi/Util/String.h>
+#include <AnKi/Util/WeakArray.h>
 
 namespace anki {
 
@@ -52,13 +53,13 @@ public:
 	DynamicArray<AnimationKeyframe<F32>> m_scales;
 	DynamicArray<AnimationKeyframe<F32>> m_cameraFovs;
 
-	void destroy(ResourceAllocator<U8> alloc)
+	void destroy(HeapMemoryPool& pool)
 	{
-		m_name.destroy(alloc);
-		m_positions.destroy(alloc);
-		m_rotations.destroy(alloc);
-		m_scales.destroy(alloc);
-		m_cameraFovs.destroy(alloc);
+		m_name.destroy(pool);
+		m_positions.destroy(pool);
+		m_rotations.destroy(pool);
+		m_scales.destroy(pool);
+		m_cameraFovs.destroy(pool);
 	}
 };
 
@@ -73,7 +74,7 @@ public:
 	Error load(const ResourceFilename& filename, Bool async);
 
 	/// Get a vector of all animation channels
-	const DynamicArray<AnimationChannel>& getChannels() const
+	ConstWeakArray<AnimationChannel> getChannels() const
 	{
 		return m_channels;
 	}

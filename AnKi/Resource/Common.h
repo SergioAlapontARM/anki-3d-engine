@@ -5,11 +5,10 @@
 
 #pragma once
 
-#include <AnKi/Util/Allocator.h>
 #include <AnKi/Util/DynamicArray.h>
 #include <AnKi/Util/String.h>
 #include <AnKi/Util/Ptr.h>
-#include <AnKi/Gr/Enums.h>
+#include <AnKi/Gr/Common.h>
 #include <AnKi/Shaders/Include/ModelTypes.h>
 
 namespace anki {
@@ -25,10 +24,11 @@ class TransferGpuAllocatorHandle;
 /// @addtogroup resource
 /// @{
 
-#define ANKI_RESOURCE_LOGI(...) ANKI_LOG("RSRC", NORMAL, __VA_ARGS__)
-#define ANKI_RESOURCE_LOGE(...) ANKI_LOG("RSRC", ERROR, __VA_ARGS__)
-#define ANKI_RESOURCE_LOGW(...) ANKI_LOG("RSRC", WARNING, __VA_ARGS__)
-#define ANKI_RESOURCE_LOGF(...) ANKI_LOG("RSRC", FATAL, __VA_ARGS__)
+#define ANKI_RESOURCE_LOGI(...) ANKI_LOG("RSRC", kNormal, __VA_ARGS__)
+#define ANKI_RESOURCE_LOGE(...) ANKI_LOG("RSRC", kError, __VA_ARGS__)
+#define ANKI_RESOURCE_LOGW(...) ANKI_LOG("RSRC", kWarning, __VA_ARGS__)
+#define ANKI_RESOURCE_LOGF(...) ANKI_LOG("RSRC", kFatal, __VA_ARGS__)
+#define ANKI_RESOURCE_LOGV(...) ANKI_LOG("RSRC", kVerbose, __VA_ARGS__)
 
 /// Deleter for ResourcePtr.
 template<typename T>
@@ -52,12 +52,6 @@ using ResourcePtr = IntrusivePtr<T, ResourcePtrDeleter<T>>;
 #include <AnKi/Resource/InstantiationMacros.h>
 #undef ANKI_INSTANTIATE_RESOURCE
 #undef ANKI_INSTANSIATE_RESOURCE_DELIMITER
-
-template<typename T>
-using ResourceAllocator = HeapAllocator<T>;
-
-template<typename T>
-using TempResourceAllocator = StackAllocator<T>;
 
 /// An alias that denotes a ResourceFilesystem path.
 using ResourceFilename = CString;

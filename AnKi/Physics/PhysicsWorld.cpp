@@ -14,18 +14,18 @@
 namespace anki {
 
 // Ugly but there is no other way
-static HeapAllocator<U8>* g_alloc = nullptr;
+static HeapMemoryPool* g_pool = nullptr;
 
 static void* btAlloc(size_t size)
 {
-	ANKI_ASSERT(g_alloc);
-	return g_alloc->getMemoryPool().allocate(size, 16);
+	ANKI_ASSERT(g_pool);
+	return g_pool->allocate(size, 16);
 }
 
 static void btFree(void* ptr)
 {
-	ANKI_ASSERT(g_alloc);
-	g_alloc->getMemoryPool().free(ptr);
+	ANKI_ASSERT(g_pool);
+	g_pool->free(ptr);
 }
 
 /// Broad phase collision callback.
@@ -60,8 +60,8 @@ public:
 		}
 
 		// Reject if they are both static
-		if(ANKI_UNLIKELY(fobj0->getMaterialGroup() == PhysicsMaterialBit::STATIC_GEOMETRY
-						 && fobj1->getMaterialGroup() == PhysicsMaterialBit::STATIC_GEOMETRY))
+		if(ANKI_UNLIKELY(fobj0->getMaterialGroup() == PhysicsMaterialBit::kStaticGeometry
+						 && fobj1->getMaterialGroup() == PhysicsMaterialBit::kStaticGeometry))
 		{
 			return false;
 		}
@@ -155,25 +155,25 @@ PhysicsWorld::~PhysicsWorld()
 	m_collisionConfig.destroy();
 	m_broadphase.destroy();
 	m_gpc.destroy();
-	m_alloc.deleteInstance(m_filterCallback);
+	deleteInstance(m_pool, m_filterCallback);
 
-	g_alloc = nullptr;
+	g_pool = nullptr;
 }
 
 Error PhysicsWorld::init(AllocAlignedCallback allocCb, void* allocCbData)
 {
-	m_alloc = HeapAllocator<U8>(allocCb, allocCbData);
-	m_tmpAlloc = StackAllocator<U8>(allocCb, allocCbData, 1_KB, 2.0f);
+	m_pool.init(allocCb, allocCbData);
+	m_tmpPool.init(allocCb, allocCbData, 1_KB, 2.0f);
 
 	// Set allocators
-	g_alloc = &m_alloc;
+	g_pool = &m_pool;
 	btAlignedAllocSetCustom(btAlloc, btFree);
 
 	// Create objects
 	m_broadphase.init();
 	m_gpc.init();
 	m_broadphase->getOverlappingPairCache()->setInternalGhostPairCallback(m_gpc.get());
-	m_filterCallback = m_alloc.newInstance<MyOverlapFilterCallback>();
+	m_filterCallback = anki::newInstance<MyOverlapFilterCallback>(m_pool);
 	m_broadphase->getOverlappingPairCache()->setOverlapFilterCallback(m_filterCallback);
 
 	m_collisionConfig.init();
@@ -186,7 +186,7 @@ Error PhysicsWorld::init(AllocAlignedCallback allocCb, void* allocCbData)
 	m_world.init(m_dispatcher.get(), m_broadphase.get(), m_solver.get(), m_collisionConfig.get());
 	m_world->setGravity(btVector3(0.0f, -9.8f, 0.0f));
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void PhysicsWorld::destroyMarkedForDeletion()
@@ -214,7 +214,7 @@ void PhysicsWorld::destroyMarkedForDeletion()
 			break;
 		}
 
-		m_alloc.deleteInstance(obj);
+		deleteInstance(m_pool, obj);
 #if ANKI_ENABLE_ASSERTIONS
 		const I32 count = m_objectsCreatedCount.fetchSub(1) - 1;
 		ANKI_ASSERT(count >= 0);
@@ -243,7 +243,7 @@ void PhysicsWorld::update(Second dt)
 	}
 
 	// Update the player controllers
-	for(PhysicsObject& obj : m_objectLists[PhysicsObjectType::PLAYER_CONTROLLER])
+	for(PhysicsObject& obj : m_objectLists[PhysicsObjectType::kPlayerController])
 	{
 		PhysicsPlayerController& playerController = static_cast<PhysicsPlayerController&>(obj);
 		playerController.moveToPositionForReal();
@@ -253,13 +253,13 @@ void PhysicsWorld::update(Second dt)
 	m_world->stepSimulation(F32(dt), 1, 1.0f / 60.0f);
 
 	// Process trigger contacts
-	for(PhysicsObject& trigger : m_objectLists[PhysicsObjectType::TRIGGER])
+	for(PhysicsObject& trigger : m_objectLists[PhysicsObjectType::kTrigger])
 	{
 		static_cast<PhysicsTrigger&>(trigger).processContacts();
 	}
 
 	// Reset the pool
-	m_tmpAlloc.getMemoryPool().reset();
+	m_tmpPool.reset();
 }
 
 void PhysicsWorld::destroyObject(PhysicsObject* obj)
@@ -293,7 +293,7 @@ PhysicsTriggerFilteredPair* PhysicsWorld::getOrCreatePhysicsTriggerFilteredPair(
 {
 	ANKI_ASSERT(trigger && filtered);
 
-	U32 emptySlot = MAX_U32;
+	U32 emptySlot = kMaxU32;
 	for(U32 i = 0; i < filtered->m_triggerFilteredPairs.getSize(); ++i)
 	{
 		PhysicsTriggerFilteredPair* pair = filtered->m_triggerFilteredPairs[i];
@@ -318,7 +318,7 @@ PhysicsTriggerFilteredPair* PhysicsWorld::getOrCreatePhysicsTriggerFilteredPair(
 		}
 	}
 
-	if(emptySlot == MAX_U32)
+	if(emptySlot == kMaxU32)
 	{
 		ANKI_PHYS_LOGW("Contact ignored. Too many active contacts for the filtered object");
 		return nullptr;
@@ -330,7 +330,7 @@ PhysicsTriggerFilteredPair* PhysicsWorld::getOrCreatePhysicsTriggerFilteredPair(
 	PhysicsTriggerFilteredPair* newPair;
 	if(filtered->m_triggerFilteredPairs[emptySlot] == nullptr)
 	{
-		filtered->m_triggerFilteredPairs[emptySlot] = m_alloc.newInstance<PhysicsTriggerFilteredPair>();
+		filtered->m_triggerFilteredPairs[emptySlot] = anki::newInstance<PhysicsTriggerFilteredPair>(m_pool);
 	}
 	newPair = filtered->m_triggerFilteredPairs[emptySlot];
 

@@ -8,7 +8,6 @@
 #include <AnKi/Gr/CommandBuffer.h>
 #include <AnKi/Gr/gl/StateTracker.h>
 #include <AnKi/Util/Assert.h>
-#include <AnKi/Util/Allocator.h>
 
 namespace anki {
 
@@ -99,7 +98,7 @@ public:
 
 	Bool isSecondLevel() const
 	{
-		return !!(m_flags & CommandBufferFlag::SECOND_LEVEL);
+		return !!(m_flags & CommandBufferFlag::kSecondLevel);
 	}
 
 	void flushDrawcall(CommandBuffer& cmdb);

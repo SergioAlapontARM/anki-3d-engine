@@ -11,35 +11,43 @@
 
 namespace anki {
 
-template<U32 N, typename TChunkType>
+template<U32 kBitCount, typename TChunkType>
 class BitSet;
 
 template<typename T>
 class BitMask;
 
-template<typename, typename, typename>
+template<typename, typename, typename, typename>
 class HashMap;
+
+template<typename, typename, typename, typename, typename>
+class HashMapRaii;
 
 template<typename T>
 class Hierarchy;
 
-template<typename T>
+template<typename>
 class List;
 
-template<typename T>
-class ListAuto;
+template<typename, typename>
+class ListRaii;
 
-template<typename T, typename TIndex>
+template<typename T, typename TConfig>
 class SparseArray;
 
 class CString;
 class String;
-class StringAuto;
+
+template<typename>
+class BaseStringRaii;
 
 class ThreadHive;
 
-template<typename T, PtrSize T_PREALLOCATED_STORAGE = ANKI_SAFE_ALIGNMENT>
+template<typename, PtrSize kPreallocatedStorage = ANKI_SAFE_ALIGNMENT>
 class Function;
+
+template<typename, PtrSize>
+class Array;
 
 template<typename T, typename TSize = U32>
 class WeakArray;
@@ -50,7 +58,9 @@ class ConstWeakArray;
 template<typename T, typename TSize = U32>
 class DynamicArray;
 
-template<typename T, typename TSize = U32>
-class DynamicArrayAuto;
+template<typename, typename, typename>
+class DynamicArrayRaii;
+
+class F16;
 
 } // end namespace anki

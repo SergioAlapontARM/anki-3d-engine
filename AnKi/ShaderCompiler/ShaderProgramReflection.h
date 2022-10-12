@@ -6,7 +6,6 @@
 #pragma once
 
 #include <AnKi/ShaderCompiler/Common.h>
-#include <AnKi/Gr/Enums.h>
 #include <AnKi/Gr/Common.h>
 #include <AnKi/Util/WeakArray.h>
 
@@ -53,8 +52,8 @@ public:
 };
 
 /// Does reflection using SPIR-V.
-Error performSpirvReflection(Array<ConstWeakArray<U8>, U32(ShaderType::COUNT)> spirv,
-							 GenericMemoryPoolAllocator<U8> tmpAlloc, ShaderReflectionVisitorInterface& interface);
+Error performSpirvReflection(Array<ConstWeakArray<U8>, U32(ShaderType::kCount)> spirv, BaseMemoryPool& tmpPool,
+							 ShaderReflectionVisitorInterface& interface);
 /// @}
 
 } // end namespace anki

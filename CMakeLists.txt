@@ -476,7 +476,12 @@ add_subdirectory(ThirdParty/FidelityFX/fsr2)
 # Add AnKi sub libraries
 add_subdirectory(AnKi)
 
-add_library(AnKi INTERFACE)
+if(MSVC)
+    add_library(AnKi INTERFACE AnKi.natvis)
+else()
+    add_library(AnKi INTERFACE)
+endif()
+
 target_link_libraries(AnKi INTERFACE AnKiCore ${THIRD_PARTY_LIBS})
 add_dependencies(AnKi AnKiShaders)
 

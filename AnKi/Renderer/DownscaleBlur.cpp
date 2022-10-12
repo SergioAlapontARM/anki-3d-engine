@@ -13,7 +13,7 @@ namespace anki {
 
 DownscaleBlur::~DownscaleBlur()
 {
-	m_fbDescrs.destroy(getAllocator());
+	m_fbDescrs.destroy(getMemoryPool());
 }
 
 Error DownscaleBlur::init()
@@ -30,7 +30,7 @@ Error DownscaleBlur::init()
 Error DownscaleBlur::initInternal()
 {
 	m_passCount = computeMaxMipmapCount2d(m_r->getPostProcessResolution().x(), m_r->getPostProcessResolution().y(),
-										  DOWNSCALE_BLUR_DOWN_TO)
+										  kDownscaleBurDownTo)
 				  - 1;
 
 	const UVec2 rez = m_r->getPostProcessResolution() / 2;
@@ -41,22 +41,22 @@ Error DownscaleBlur::initInternal()
 	// Create the miped texture
 	TextureInitInfo texinit =
 		m_r->create2DRenderTargetDescription(rez.x(), rez.y(), m_r->getHdrFormat(), "DownscaleBlur");
-	texinit.m_usage = TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::SAMPLED_COMPUTE;
+	texinit.m_usage = TextureUsageBit::kSampledFragment | TextureUsageBit::kSampledCompute;
 	if(preferCompute)
 	{
-		texinit.m_usage |= TextureUsageBit::SAMPLED_COMPUTE | TextureUsageBit::IMAGE_COMPUTE_WRITE;
+		texinit.m_usage |= TextureUsageBit::kSampledCompute | TextureUsageBit::kImageComputeWrite;
 	}
 	else
 	{
-		texinit.m_usage |= TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+		texinit.m_usage |= TextureUsageBit::kFramebufferWrite;
 	}
 	texinit.m_mipmapCount = U8(m_passCount);
-	m_rtTex = m_r->createAndClearRenderTarget(texinit, TextureUsageBit::SAMPLED_COMPUTE);
+	m_rtTex = m_r->createAndClearRenderTarget(texinit, TextureUsageBit::kSampledCompute);
 
 	// FB descr
 	if(!preferCompute)
 	{
-		m_fbDescrs.create(getAllocator(), m_passCount);
+		m_fbDescrs.create(getMemoryPool(), m_passCount);
 		for(U32 pass = 0; pass < m_passCount; ++pass)
 		{
 			m_fbDescrs[pass].m_colorAttachmentCount = 1;
@@ -73,13 +73,13 @@ Error DownscaleBlur::initInternal()
 	m_prog->getOrCreateVariant(variant);
 	m_grProg = variant->getProgram();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void DownscaleBlur::importRenderTargets(RenderingContext& ctx)
 {
 	RenderGraphDescription& rgraph = ctx.m_renderGraphDescr;
-	m_runCtx.m_rt = rgraph.importRenderTarget(m_rtTex, TextureUsageBit::SAMPLED_COMPUTE);
+	m_runCtx.m_rt = rgraph.importRenderTarget(m_rtTex, TextureUsageBit::kSampledCompute);
 }
 
 void DownscaleBlur::populateRenderGraph(RenderingContext& ctx)
@@ -87,8 +87,8 @@ void DownscaleBlur::populateRenderGraph(RenderingContext& ctx)
 	RenderGraphDescription& rgraph = ctx.m_renderGraphDescr;
 
 	// Create passes
-	static const Array<CString, 8> passNames = {"DownBlur #0",  "Down/Blur #1", "Down/Blur #2", "Down/Blur #3",
-												"Down/Blur #4", "Down/Blur #5", "Down/Blur #6", "Down/Blur #7"};
+	static constexpr Array<CString, 8> passNames = {"DownBlur #0",  "Down/Blur #1", "Down/Blur #2", "Down/Blur #3",
+													"Down/Blur #4", "Down/Blur #5", "Down/Blur #6", "Down/Blur #7"};
 	const RenderTargetHandle inRt =
 		(m_r->getScale().hasUpscaledHdrRt()) ? m_r->getScale().getUpscaledHdrRt() : m_r->getScale().getTonemappedRt();
 	if(getConfig().getRPreferCompute())
@@ -108,18 +108,15 @@ void DownscaleBlur::populateRenderGraph(RenderingContext& ctx)
 				sampleSubresource.m_firstMipmap = i - 1;
 				renderSubresource.m_firstMipmap = i;
 
-				pass.newDependency(
-					RenderPassDependency(m_runCtx.m_rt, TextureUsageBit::IMAGE_COMPUTE_WRITE, renderSubresource));
-				pass.newDependency(
-					RenderPassDependency(m_runCtx.m_rt, TextureUsageBit::SAMPLED_COMPUTE, sampleSubresource));
+				pass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kImageComputeWrite, renderSubresource);
+				pass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kSampledCompute, sampleSubresource);
 			}
 			else
 			{
 				TextureSubresourceInfo renderSubresource;
 
-				pass.newDependency(
-					RenderPassDependency(m_runCtx.m_rt, TextureUsageBit::IMAGE_COMPUTE_WRITE, renderSubresource));
-				pass.newDependency(RenderPassDependency(inRt, TextureUsageBit::SAMPLED_COMPUTE));
+				pass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kImageComputeWrite, renderSubresource);
+				pass.newTextureDependency(inRt, TextureUsageBit::kSampledCompute);
 			}
 		}
 	}
@@ -141,18 +138,15 @@ void DownscaleBlur::populateRenderGraph(RenderingContext& ctx)
 				sampleSubresource.m_firstMipmap = i - 1;
 				renderSubresource.m_firstMipmap = i;
 
-				pass.newDependency(RenderPassDependency(m_runCtx.m_rt, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE,
-														renderSubresource));
-				pass.newDependency(
-					RenderPassDependency(m_runCtx.m_rt, TextureUsageBit::SAMPLED_FRAGMENT, sampleSubresource));
+				pass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kFramebufferWrite, renderSubresource);
+				pass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kSampledFragment, sampleSubresource);
 			}
 			else
 			{
 				TextureSubresourceInfo renderSubresource;
 
-				pass.newDependency(RenderPassDependency(m_runCtx.m_rt, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE,
-														renderSubresource));
-				pass.newDependency(RenderPassDependency(inRt, TextureUsageBit::SAMPLED_FRAGMENT));
+				pass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kFramebufferWrite, renderSubresource);
+				pass.newTextureDependency(inRt, TextureUsageBit::kSampledFragment);
 			}
 		}
 	}
@@ -200,7 +194,7 @@ void DownscaleBlur::run(U32 passIdx, RenderPassWorkContext& rgraphCtx)
 	{
 		cmdb->setViewport(0, 0, vpWidth, vpHeight);
 
-		cmdb->drawArrays(PrimitiveTopology::TRIANGLES, 3);
+		cmdb->drawArrays(PrimitiveTopology::kTriangles, 3);
 	}
 }
 

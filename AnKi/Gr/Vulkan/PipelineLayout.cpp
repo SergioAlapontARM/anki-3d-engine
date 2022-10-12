@@ -13,7 +13,7 @@ void PipelineLayoutFactory::destroy()
 	{
 		auto it = m_layouts.getBegin();
 		VkPipelineLayout handle = *it;
-		m_layouts.erase(m_alloc, it);
+		m_layouts.erase(*m_pool, it);
 
 		vkDestroyPipelineLayout(m_dev, handle, nullptr);
 	}
@@ -23,7 +23,7 @@ Error PipelineLayoutFactory::newPipelineLayout(const WeakArray<DescriptorSetLayo
 											   PipelineLayout& layout)
 {
 	U64 hash = computeHash(&pushConstantsSize, sizeof(pushConstantsSize));
-	Array<VkDescriptorSetLayout, MAX_DESCRIPTOR_SETS> vkDsetLayouts;
+	Array<VkDescriptorSetLayout, kMaxDescriptorSets> vkDsetLayouts;
 	U32 dsetLayoutCount = 0;
 	for(const DescriptorSetLayout& dl : dsetLayouts)
 	{
@@ -66,12 +66,12 @@ Error PipelineLayoutFactory::newPipelineLayout(const WeakArray<DescriptorSetLayo
 		VkPipelineLayout pplineLayHandle;
 		ANKI_VK_CHECK(vkCreatePipelineLayout(m_dev, &ci, nullptr, &pplineLayHandle));
 
-		m_layouts.emplace(m_alloc, hash, pplineLayHandle);
+		m_layouts.emplace(*m_pool, hash, pplineLayHandle);
 
 		layout.m_handle = pplineLayHandle;
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

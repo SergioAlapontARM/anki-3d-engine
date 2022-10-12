@@ -14,11 +14,11 @@ namespace anki {
 CommandBuffer* CommandBuffer::newInstance(GrManager* manager, const CommandBufferInitInfo& init)
 {
 	ANKI_TRACE_SCOPED_EVENT(VK_NEW_CCOMMAND_BUFFER);
-	CommandBufferImpl* impl = manager->getAllocator().newInstance<CommandBufferImpl>(manager, init.getName());
+	CommandBufferImpl* impl = anki::newInstance<CommandBufferImpl>(manager->getMemoryPool(), manager, init.getName());
 	const Error err = impl->init(init);
 	if(err)
 	{
-		manager->getAllocator().deleteInstance(impl);
+		deleteInstance(manager->getMemoryPool(), impl);
 		impl = nullptr;
 	}
 	return impl;
@@ -46,7 +46,7 @@ void CommandBuffer::flush(ConstWeakArray<FencePtr> waitFences, FencePtr* signalF
 		if(signalFence)
 		{
 			FenceImpl* fenceImpl =
-				self.getGrManagerImpl().getAllocator().newInstance<FenceImpl>(&getManager(), "SignalFence");
+				anki::newInstance<FenceImpl>(self.getGrManagerImpl().getMemoryPool(), &getManager(), "SignalFence");
 			fenceImpl->m_semaphore = signalSemaphore;
 			signalFence->reset(fenceImpl);
 		}
@@ -246,7 +246,7 @@ void CommandBuffer::bindShaderProgram(const ShaderProgramPtr& prog)
 }
 
 void CommandBuffer::beginRenderPass(const FramebufferPtr& fb,
-									const Array<TextureUsageBit, MAX_COLOR_ATTACHMENTS>& colorAttachmentUsages,
+									const Array<TextureUsageBit, kMaxColorRenderTargets>& colorAttachmentUsages,
 									TextureUsageBit depthStencilAttachmentUsage, U32 minx, U32 miny, U32 width,
 									U32 height)
 {
@@ -342,11 +342,11 @@ void CommandBuffer::fillBuffer(const BufferPtr& buff, PtrSize offset, PtrSize si
 	self.fillBufferInternal(buff, offset, size, value);
 }
 
-void CommandBuffer::writeOcclusionQueryResultToBuffer(const OcclusionQueryPtr& query, PtrSize offset,
-													  const BufferPtr& buff)
+void CommandBuffer::writeOcclusionQueriesResultToBuffer(ConstWeakArray<OcclusionQuery*> queries, PtrSize offset,
+														const BufferPtr& buff)
 {
 	ANKI_VK_SELF(CommandBufferImpl);
-	self.writeOcclusionQueryResultToBufferInternal(query, offset, buff);
+	self.writeOcclusionQueriesResultToBufferInternal(queries, offset, buff);
 }
 
 void CommandBuffer::copyBufferToBuffer(const BufferPtr& src, PtrSize srcOffset, const BufferPtr& dst, PtrSize dstOffset,
@@ -373,46 +373,18 @@ void CommandBuffer::upscale(const GrUpscalerPtr& upscaler, const TextureViewPtr&
 						 jitterOffset, motionVectorsScale, cameraNear, cameraFar, cameraFovV);
 }
 
-void CommandBuffer::setTextureBarrier(const TexturePtr& tex, TextureUsageBit prevUsage, TextureUsageBit nextUsage,
-									  const TextureSubresourceInfo& subresource)
+void CommandBuffer::setPipelineBarrier(ConstWeakArray<TextureBarrierInfo> textures,
+									   ConstWeakArray<BufferBarrierInfo> buffers,
+									   ConstWeakArray<AccelerationStructureBarrierInfo> accelerationStructures)
 {
 	ANKI_VK_SELF(CommandBufferImpl);
-	self.setTextureBarrierInternal(tex, prevUsage, nextUsage, subresource);
+	self.setPipelineBarrierInternal(textures, buffers, accelerationStructures);
 }
 
-void CommandBuffer::setTextureSurfaceBarrier(const TexturePtr& tex, TextureUsageBit prevUsage,
-											 TextureUsageBit nextUsage, const TextureSurfaceInfo& surf)
+void CommandBuffer::resetOcclusionQueries(ConstWeakArray<OcclusionQuery*> queries)
 {
 	ANKI_VK_SELF(CommandBufferImpl);
-	self.setTextureSurfaceBarrierInternal(tex, prevUsage, nextUsage, surf);
-}
-
-void CommandBuffer::setTextureVolumeBarrier(const TexturePtr& tex, TextureUsageBit prevUsage, TextureUsageBit nextUsage,
-											const TextureVolumeInfo& vol)
-{
-	ANKI_VK_SELF(CommandBufferImpl);
-	self.setTextureVolumeBarrierInternal(tex, prevUsage, nextUsage, vol);
-}
-
-void CommandBuffer::setBufferBarrier(const BufferPtr& buff, BufferUsageBit before, BufferUsageBit after, PtrSize offset,
-									 PtrSize size)
-{
-	ANKI_VK_SELF(CommandBufferImpl);
-	self.setBufferBarrierInternal(buff, before, after, offset, size);
-}
-
-void CommandBuffer::setAccelerationStructureBarrier(const AccelerationStructurePtr& as,
-													AccelerationStructureUsageBit prevUsage,
-													AccelerationStructureUsageBit nextUsage)
-{
-	ANKI_VK_SELF(CommandBufferImpl);
-	self.setAccelerationStructureBarrierInternal(as, prevUsage, nextUsage);
-}
-
-void CommandBuffer::resetOcclusionQuery(const OcclusionQueryPtr& query)
-{
-	ANKI_VK_SELF(CommandBufferImpl);
-	self.resetOcclusionQueryInternal(query);
+	self.resetOcclusionQueriesInternal(queries);
 }
 
 void CommandBuffer::beginOcclusionQuery(const OcclusionQueryPtr& query)
@@ -427,16 +399,16 @@ void CommandBuffer::endOcclusionQuery(const OcclusionQueryPtr& query)
 	self.endOcclusionQueryInternal(query);
 }
 
-void CommandBuffer::pushSecondLevelCommandBuffer(const CommandBufferPtr& cmdb)
+void CommandBuffer::pushSecondLevelCommandBuffers(ConstWeakArray<CommandBuffer*> cmdbs)
 {
 	ANKI_VK_SELF(CommandBufferImpl);
-	self.pushSecondLevelCommandBufferInternal(cmdb);
+	self.pushSecondLevelCommandBuffersInternal(cmdbs);
 }
 
-void CommandBuffer::resetTimestampQuery(const TimestampQueryPtr& query)
+void CommandBuffer::resetTimestampQueries(ConstWeakArray<TimestampQuery*> queries)
 {
 	ANKI_VK_SELF(CommandBufferImpl);
-	self.resetTimestampQueryInternal(query);
+	self.resetTimestampQueriesInternal(queries);
 }
 
 void CommandBuffer::writeTimestamp(const TimestampQueryPtr& query)

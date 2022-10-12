@@ -16,89 +16,21 @@ namespace anki {
 /// @addtogroup graphics
 /// @{
 
-/// The draw indirect structure for index drawing, also the parameters of a regular drawcall
-class DrawElementsIndirectInfo
-{
-public:
-	U32 m_count = MAX_U32;
-	U32 m_instanceCount = 1;
-	U32 m_firstIndex = 0;
-	U32 m_baseVertex = 0;
-	U32 m_baseInstance = 0;
-
-	DrawElementsIndirectInfo() = default;
-
-	DrawElementsIndirectInfo(const DrawElementsIndirectInfo&) = default;
-
-	DrawElementsIndirectInfo(U32 count, U32 instanceCount, U32 firstIndex, U32 baseVertex, U32 baseInstance)
-		: m_count(count)
-		, m_instanceCount(instanceCount)
-		, m_firstIndex(firstIndex)
-		, m_baseVertex(baseVertex)
-		, m_baseInstance(baseInstance)
-	{
-	}
-
-	Bool operator==(const DrawElementsIndirectInfo& b) const
-	{
-		return m_count == b.m_count && m_instanceCount == b.m_instanceCount && m_firstIndex == b.m_firstIndex
-			   && m_baseVertex == b.m_baseVertex && m_baseInstance == b.m_baseInstance;
-	}
-
-	Bool operator!=(const DrawElementsIndirectInfo& b) const
-	{
-		return !(operator==(b));
-	}
-};
-
-/// The draw indirect structure for arrays drawing, also the parameters of a regular drawcall
-class DrawArraysIndirectInfo
-{
-public:
-	U32 m_count = MAX_U32;
-	U32 m_instanceCount = 1;
-	U32 m_first = 0;
-	U32 m_baseInstance = 0;
-
-	DrawArraysIndirectInfo() = default;
-
-	DrawArraysIndirectInfo(const DrawArraysIndirectInfo&) = default;
-
-	DrawArraysIndirectInfo(U32 count, U32 instanceCount, U32 first, U32 baseInstance)
-		: m_count(count)
-		, m_instanceCount(instanceCount)
-		, m_first(first)
-		, m_baseInstance(baseInstance)
-	{
-	}
-
-	Bool operator==(const DrawArraysIndirectInfo& b) const
-	{
-		return m_count == b.m_count && m_instanceCount == b.m_instanceCount && m_first == b.m_first
-			   && m_baseInstance == b.m_baseInstance;
-	}
-
-	Bool operator!=(const DrawArraysIndirectInfo& b) const
-	{
-		return !(operator==(b));
-	}
-};
-
 /// Command buffer initialization flags.
 enum class CommandBufferFlag : U8
 {
-	NONE = 0,
+	kNone = 0,
 
-	SECOND_LEVEL = 1 << 0,
+	kSecondLevel = 1 << 0,
 
 	/// It will contain a handfull of commands.
-	SMALL_BATCH = 1 << 3,
+	kSmallBatch = 1 << 3,
 
 	/// Will contain graphics, compute and transfer work.
-	GENERAL_WORK = 1 << 4,
+	kGeneralWork = 1 << 4,
 
 	/// Will contain only compute work. It binds to async compute queues.
-	COMPUTE_WORK = 1 << 5,
+	kComputeWork = 1 << 5,
 };
 ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(CommandBufferFlag)
 
@@ -107,10 +39,10 @@ class CommandBufferInitInfo : public GrBaseInitInfo
 {
 public:
 	FramebufferPtr m_framebuffer; ///< For second level command buffers.
-	Array<TextureUsageBit, MAX_COLOR_ATTACHMENTS> m_colorAttachmentUsages = {};
-	TextureUsageBit m_depthStencilAttachmentUsage = TextureUsageBit::NONE;
+	Array<TextureUsageBit, kMaxColorRenderTargets> m_colorAttachmentUsages = {};
+	TextureUsageBit m_depthStencilAttachmentUsage = TextureUsageBit::kNone;
 
-	CommandBufferFlag m_flags = CommandBufferFlag::NONE;
+	CommandBufferFlag m_flags = CommandBufferFlag::kNone;
 
 	CommandBufferInitInfo(CString name = {})
 		: GrBaseInitInfo(name)
@@ -124,7 +56,7 @@ class CommandBuffer : public GrObject
 	ANKI_GR_OBJECT
 
 public:
-	static const GrObjectType CLASS_TYPE = GrObjectType::COMMAND_BUFFER;
+	static constexpr GrObjectType kClassType = GrObjectType::kCommandBuffer;
 
 	/// Finalize and submit if it's primary command buffer and just finalize if it's second level.
 	/// @param[in]  waitFences Optionally wait for some fences.
@@ -136,7 +68,7 @@ public:
 
 	/// Bind vertex buffer.
 	void bindVertexBuffer(U32 binding, const BufferPtr& buff, PtrSize offset, PtrSize stride,
-						  VertexStepRate stepRate = VertexStepRate::VERTEX);
+						  VertexStepRate stepRate = VertexStepRate::kVertex);
 
 	/// Setup a vertex attribute.
 	void setVertexAttribute(U32 location, U32 buffBinding, Format fmt, PtrSize relativeOffset);
@@ -247,7 +179,7 @@ public:
 	/// @param binding The binding to bind to.
 	/// @param[in,out] buff The buffer to bind.
 	/// @param offset The base of the binding.
-	/// @param range The bytes to bind starting from the offset. If it's MAX_PTR_SIZE then map from offset to the end
+	/// @param range The bytes to bind starting from the offset. If it's kMaxPtrSize then map from offset to the end
 	///              of the buffer.
 	/// @param arrayIdx The array index if the binding is an array.
 	void bindUniformBuffer(U32 set, U32 binding, const BufferPtr& buff, PtrSize offset, PtrSize range,
@@ -258,7 +190,7 @@ public:
 	/// @param binding The binding to bind to.
 	/// @param[in,out] buff The buffer to bind.
 	/// @param offset The base of the binding.
-	/// @param range The bytes to bind starting from the offset. If it's MAX_PTR_SIZE then map from offset to the end
+	/// @param range The bytes to bind starting from the offset. If it's kMaxPtrSize then map from offset to the end
 	///              of the buffer.
 	/// @param arrayIdx The array index if the binding is an array.
 	void bindStorageBuffer(U32 set, U32 binding, const BufferPtr& buff, PtrSize offset, PtrSize range,
@@ -276,7 +208,7 @@ public:
 	/// @param binding The binding to bind to.
 	/// @param[in,out] buff The buffer to bind.
 	/// @param offset The base of the binding.
-	/// @param range The bytes to bind starting from the offset. If it's MAX_PTR_SIZE then map from offset to the end
+	/// @param range The bytes to bind starting from the offset. If it's kMaxPtrSize then map from offset to the end
 	///              of the buffer.
 	/// @param fmt The format of the buffer.
 	/// @param arrayIdx The array index if the binding is an array.
@@ -303,9 +235,9 @@ public:
 	/// The minx, miny, width, height control the area that the load and store operations will happen. If the scissor is
 	/// bigger than the render area the results are undefined.
 	void beginRenderPass(const FramebufferPtr& fb,
-						 const Array<TextureUsageBit, MAX_COLOR_ATTACHMENTS>& colorAttachmentUsages,
-						 TextureUsageBit depthStencilAttachmentUsage, U32 minx = 0, U32 miny = 0, U32 width = MAX_U32,
-						 U32 height = MAX_U32);
+						 const Array<TextureUsageBit, kMaxColorRenderTargets>& colorAttachmentUsages,
+						 TextureUsageBit depthStencilAttachmentUsage, U32 minx = 0, U32 miny = 0, U32 width = kMaxU32,
+						 U32 height = kMaxU32);
 
 	/// End renderpass.
 	void endRenderPass();
@@ -360,7 +292,7 @@ public:
 				   U32 rayTypeCount, U32 width, U32 height, U32 depth);
 
 	/// Generate mipmaps for non-3D textures. You have to transition all the mip levels of this face and layer to
-	/// TextureUsageBit::GENERATE_MIPMAPS before calling this method.
+	/// TextureUsageBit::kGenerateMipmaps before calling this method.
 	/// @param texView The texture view to generate mips. It should point to a subresource that contains the whole
 	///                mip chain and only one face and one layer.
 	void generateMipmaps2d(const TextureViewPtr& texView);
@@ -389,15 +321,16 @@ public:
 	/// Fill a buffer with some value.
 	/// @param[in,out] buff The buffer to fill.
 	/// @param offset From where to start filling. Must be multiple of 4.
-	/// @param size The bytes to fill. Must be multiple of 4 or MAX_PTR_SIZE to indicate the whole buffer.
+	/// @param size The bytes to fill. Must be multiple of 4 or kMaxPtrSize to indicate the whole buffer.
 	/// @param value The value to fill the buffer with.
 	void fillBuffer(const BufferPtr& buff, PtrSize offset, PtrSize size, U32 value);
 
 	/// Write the occlusion result to buffer.
-	/// @param[in] query The query to get the result from.
+	/// @param[in] queries The queries to write the result of.
 	/// @param offset The offset inside the buffer to write the result.
 	/// @param buff The buffer to update.
-	void writeOcclusionQueryResultToBuffer(const OcclusionQueryPtr& query, PtrSize offset, const BufferPtr& buff);
+	void writeOcclusionQueriesResultToBuffer(ConstWeakArray<OcclusionQuery*> queries, PtrSize offset,
+											 const BufferPtr& buff);
 
 	/// Copy buffer to buffer.
 	/// @param[in] src Source buffer.
@@ -434,27 +367,15 @@ public:
 
 	/// @name Sync
 	/// @{
-	void setTextureBarrier(const TexturePtr& tex, TextureUsageBit prevUsage, TextureUsageBit nextUsage,
-						   const TextureSubresourceInfo& subresource);
-
-	void setTextureSurfaceBarrier(const TexturePtr& tex, TextureUsageBit prevUsage, TextureUsageBit nextUsage,
-								  const TextureSurfaceInfo& surf);
-
-	void setTextureVolumeBarrier(const TexturePtr& tex, TextureUsageBit prevUsage, TextureUsageBit nextUsage,
-								 const TextureVolumeInfo& vol);
-
-	void setBufferBarrier(const BufferPtr& buff, BufferUsageBit prevUsage, BufferUsageBit nextUsage, PtrSize offset,
-						  PtrSize size);
-
-	void setAccelerationStructureBarrier(const AccelerationStructurePtr& as, AccelerationStructureUsageBit prevUsage,
-										 AccelerationStructureUsageBit nextUsage);
+	void setPipelineBarrier(ConstWeakArray<TextureBarrierInfo> textures, ConstWeakArray<BufferBarrierInfo> buffers,
+							ConstWeakArray<AccelerationStructureBarrierInfo> accelerationStructures);
 	/// @}
 
 	/// @name Other
 	/// @{
 
-	/// Reset query before beginOcclusionQuery.
-	void resetOcclusionQuery(const OcclusionQueryPtr& query);
+	/// Reset queries before beginOcclusionQuery.
+	void resetOcclusionQueries(ConstWeakArray<OcclusionQuery*> queries);
 
 	/// Begin query.
 	void beginOcclusionQuery(const OcclusionQueryPtr& query);
@@ -462,14 +383,14 @@ public:
 	/// End query.
 	void endOcclusionQuery(const OcclusionQueryPtr& query);
 
-	/// Reset timestamp query before writeTimestamp.
-	void resetTimestampQuery(const TimestampQueryPtr& query);
+	/// Reset timestamp queries before writeTimestamp.
+	void resetTimestampQueries(ConstWeakArray<TimestampQuery*> queries);
 
 	/// Write a timestamp.
 	void writeTimestamp(const TimestampQueryPtr& query);
 
-	/// Append a second level command buffer.
-	void pushSecondLevelCommandBuffer(const CommandBufferPtr& cmdb);
+	/// Append second level command buffers.
+	void pushSecondLevelCommandBuffers(ConstWeakArray<CommandBuffer*> cmdbs);
 
 	Bool isEmpty() const;
 	/// @}
@@ -477,7 +398,7 @@ public:
 protected:
 	/// Construct.
 	CommandBuffer(GrManager* manager, CString name)
-		: GrObject(manager, CLASS_TYPE, name)
+		: GrObject(manager, kClassType, name)
 	{
 	}
 

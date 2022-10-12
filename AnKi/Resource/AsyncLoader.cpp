@@ -10,7 +10,7 @@
 namespace anki {
 
 AsyncLoader::AsyncLoader()
-	: m_thread("anki_asyload")
+	: m_thread("AsyncLoad")
 {
 }
 
@@ -26,14 +26,15 @@ AsyncLoader::~AsyncLoader()
 		{
 			AsyncLoaderTask* task = &m_taskQueue.getFront();
 			m_taskQueue.popFront();
-			m_alloc.deleteInstance(task);
+			deleteInstance(*m_pool, task);
 		}
 	}
 }
 
-void AsyncLoader::init(const HeapAllocator<U8>& alloc)
+void AsyncLoader::init(HeapMemoryPool* pool)
 {
-	m_alloc = alloc;
+	ANKI_ASSERT(pool);
+	m_pool = pool;
 	m_thread.start(this, threadCallback);
 }
 
@@ -75,7 +76,7 @@ Error AsyncLoader::threadCallback(ThreadCallbackInfo& info)
 
 Error AsyncLoader::threadWorker()
 {
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 
 	while(!err)
 	{
@@ -145,7 +146,7 @@ Error AsyncLoader::threadWorker()
 			else
 			{
 				// Delete the task
-				m_alloc.deleteInstance(task);
+				deleteInstance(*m_pool, task);
 			}
 
 			if(ctx.m_pause)

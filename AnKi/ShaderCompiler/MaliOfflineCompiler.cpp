@@ -77,7 +77,7 @@ static CString hwUnitToStr(MaliOfflineCompilerHwUnit u)
 	return out;
 }
 
-void MaliOfflineCompilerOut::toString(StringAuto& str) const
+void MaliOfflineCompilerOut::toString(StringRaii& str) const
 {
 	str.destroy();
 	str.sprintf("Regs %u Spilling %u "
@@ -88,7 +88,7 @@ void MaliOfflineCompilerOut::toString(StringAuto& str) const
 }
 
 static Error runMaliOfflineCompilerInternal(CString maliocExecutable, CString spirvFilename, ShaderType shaderType,
-											GenericMemoryPoolAllocator<U8> tmpAlloc, MaliOfflineCompilerOut& out)
+											BaseMemoryPool& tmpPool, MaliOfflineCompilerOut& out)
 {
 	out = {};
 
@@ -97,13 +97,13 @@ static Error runMaliOfflineCompilerInternal(CString maliocExecutable, CString sp
 
 	switch(shaderType)
 	{
-	case ShaderType::VERTEX:
+	case ShaderType::kVertex:
 		args[0] = "-v";
 		break;
-	case ShaderType::FRAGMENT:
+	case ShaderType::kFragment:
 		args[0] = "-f";
 		break;
-	case ShaderType::COMPUTE:
+	case ShaderType::kCompute:
 		args[0] = "-C";
 		break;
 	default:
@@ -121,15 +121,15 @@ static Error runMaliOfflineCompilerInternal(CString maliocExecutable, CString sp
 	ANKI_CHECK(proc.wait(-1.0, &status, &exitCode));
 	if(exitCode != 0)
 	{
-		StringAuto stderre(tmpAlloc);
+		StringRaii stderre(&tmpPool);
 		const Error err = proc.readFromStderr(stderre);
 		ANKI_SHADER_COMPILER_LOGE("Mali offline compiler failed with exit code %d. Stderr: %s", exitCode,
 								  (err || stderre.isEmpty()) ? "<no text>" : stderre.cstr());
-		return Error::FUNCTION_FAILED;
+		return Error::kFunctionFailed;
 	}
 
 	// Get stdout
-	StringAuto stdouts(tmpAlloc);
+	StringRaii stdouts(&tmpPool);
 	ANKI_CHECK(proc.readFromStdout(stdouts));
 	const std::string stdoutstl(stdouts.cstr());
 
@@ -142,13 +142,13 @@ static Error runMaliOfflineCompilerInternal(CString maliocExecutable, CString sp
 	else
 	{
 		ANKI_SHADER_COMPILER_LOGE("Error parsing work registers");
-		return Error::FUNCTION_FAILED;
+		return Error::kFunctionFailed;
 	}
 
 #define ANKI_FLOAT_REGEX "([0-9]+[.]?[0-9]*)"
 
 	// Instructions
-	if(shaderType == ShaderType::VERTEX)
+	if(shaderType == ShaderType::kVertex)
 	{
 		// Add the instructions in position and varying variants
 
@@ -189,10 +189,10 @@ static Error runMaliOfflineCompilerInternal(CString maliocExecutable, CString sp
 		if(count == 0)
 		{
 			ANKI_SHADER_COMPILER_LOGE("Error parsing instruction cycles");
-			return Error::FUNCTION_FAILED;
+			return Error::kFunctionFailed;
 		}
 	}
-	else if(shaderType == ShaderType::FRAGMENT)
+	else if(shaderType == ShaderType::kFragment)
 	{
 		if(std::regex_search(stdoutstl, match,
 							 std::regex("Total instruction cycles:\\s*" ANKI_FLOAT_REGEX "\\s*" ANKI_FLOAT_REGEX
@@ -214,12 +214,12 @@ static Error runMaliOfflineCompilerInternal(CString maliocExecutable, CString sp
 		else
 		{
 			ANKI_SHADER_COMPILER_LOGE("Error parsing instruction cycles");
-			return Error::FUNCTION_FAILED;
+			return Error::kFunctionFailed;
 		}
 	}
 	else
 	{
-		ANKI_ASSERT(shaderType == ShaderType::COMPUTE);
+		ANKI_ASSERT(shaderType == ShaderType::kCompute);
 
 		if(std::regex_search(stdoutstl, match,
 							 std::regex("Total instruction cycles:\\s*" ANKI_FLOAT_REGEX "\\s*" ANKI_FLOAT_REGEX
@@ -240,7 +240,7 @@ static Error runMaliOfflineCompilerInternal(CString maliocExecutable, CString sp
 		else
 		{
 			ANKI_SHADER_COMPILER_LOGE("Error parsing instruction cycles");
-			return Error::FUNCTION_FAILED;
+			return Error::kFunctionFailed;
 		}
 	}
 
@@ -287,7 +287,7 @@ static Error runMaliOfflineCompilerInternal(CString maliocExecutable, CString sp
 		if(count == 0)
 		{
 			ANKI_SHADER_COMPILER_LOGE("Error parsing 16-bit arithmetic");
-			return Error::FUNCTION_FAILED;
+			return Error::kFunctionFailed;
 		}
 	}
 
@@ -295,34 +295,34 @@ static Error runMaliOfflineCompilerInternal(CString maliocExecutable, CString sp
 	if(false)
 	{
 		printf("%s\n", stdouts.cstr());
-		StringAuto str(tmpAlloc);
+		StringRaii str(&tmpPool);
 		out.toString(str);
 		printf("%s\n", str.cstr());
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error runMaliOfflineCompiler(CString maliocExecutable, ConstWeakArray<U8> spirv, ShaderType shaderType,
-							 GenericMemoryPoolAllocator<U8> tmpAlloc, MaliOfflineCompilerOut& out)
+							 BaseMemoryPool& tmpPool, MaliOfflineCompilerOut& out)
 {
 	ANKI_ASSERT(spirv.getSize() > 0);
 
 	// Create temp file to dump the spirv
-	StringAuto tmpDir(tmpAlloc);
+	StringRaii tmpDir(&tmpPool);
 	ANKI_CHECK(getTempDirectory(tmpDir));
-	StringAuto spirvFilename(tmpAlloc);
+	StringRaii spirvFilename(&tmpPool);
 	spirvFilename.sprintf("%s/AnKiMaliocTmpSpirv_%" PRIu64 ".spv", tmpDir.cstr(), getRandom());
 
 	File spirvFile;
-	ANKI_CHECK(spirvFile.open(spirvFilename, FileOpenFlag::WRITE | FileOpenFlag::BINARY));
+	ANKI_CHECK(spirvFile.open(spirvFilename, FileOpenFlag::kWrite | FileOpenFlag::kBinary));
 	Error err = spirvFile.write(spirv.getBegin(), spirv.getSizeInBytes());
 	spirvFile.close();
 
 	// Call malioc
 	if(!err)
 	{
-		err = runMaliOfflineCompilerInternal(maliocExecutable, spirvFilename, shaderType, tmpAlloc, out);
+		err = runMaliOfflineCompilerInternal(maliocExecutable, spirvFilename, shaderType, tmpPool, out);
 	}
 
 	// Cleanup

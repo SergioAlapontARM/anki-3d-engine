@@ -28,20 +28,6 @@ class CommandBufferInitInfo;
 /// @addtogroup vulkan
 /// @{
 
-#define ANKI_CMD(x_, t_) \
-	flushBatches(CommandBufferCommandType::t_); \
-	x_;
-
-/// List the commands that can be batched.
-enum class CommandBufferCommandType : U8
-{
-	SET_BARRIER,
-	RESET_QUERY,
-	WRITE_QUERY_RESULT,
-	PUSH_SECOND_LEVEL,
-	ANY_OTHER_COMMAND
-};
-
 /// Command buffer implementation.
 class CommandBufferImpl final : public CommandBuffer, public VulkanObject<CommandBuffer, CommandBufferImpl>
 {
@@ -88,7 +74,7 @@ public:
 
 	Bool isSecondLevel() const
 	{
-		return !!(m_flags & CommandBufferFlag::SECOND_LEVEL);
+		return !!(m_flags & CommandBufferFlag::kSecondLevel);
 	}
 
 	void bindVertexBufferInternal(U32 binding, const BufferPtr& buff, PtrSize offset, PtrSize stride,
@@ -97,7 +83,7 @@ public:
 		commandCommon();
 		m_state.bindVertexBuffer(binding, stride, stepRate);
 		const VkBuffer vkbuff = static_cast<const BufferImpl&>(*buff).getHandle();
-		ANKI_CMD(vkCmdBindVertexBuffers(m_handle, binding, 1, &vkbuff, &offset), ANY_OTHER_COMMAND);
+		vkCmdBindVertexBuffers(m_handle, binding, 1, &vkbuff, &offset);
 		m_microCmdb->pushObjectRef(buff);
 	}
 
@@ -110,9 +96,8 @@ public:
 	void bindIndexBufferInternal(const BufferPtr& buff, PtrSize offset, IndexType type)
 	{
 		commandCommon();
-		ANKI_CMD(vkCmdBindIndexBuffer(m_handle, static_cast<const BufferImpl&>(*buff).getHandle(), offset,
-									  convertIndexType(type)),
-				 ANY_OTHER_COMMAND);
+		vkCmdBindIndexBuffer(m_handle, static_cast<const BufferImpl&>(*buff).getHandle(), offset,
+							 convertIndexType(type));
 		m_microCmdb->pushObjectRef(buff);
 	}
 
@@ -235,7 +220,7 @@ public:
 		const TextureViewImpl& view = static_cast<const TextureViewImpl&>(*texView);
 		const TextureImpl& tex = view.getTextureImpl();
 		ANKI_ASSERT(tex.isSubresourceGoodForSampling(view.getSubresource()));
-		const VkImageLayout lay = tex.computeLayout(TextureUsageBit::ALL_SAMPLED & tex.getTextureUsage(), 0);
+		const VkImageLayout lay = tex.computeLayout(TextureUsageBit::kAllSampled & tex.getTextureUsage(), 0);
 
 		m_dsetState[set].bindTextureAndSampler(binding, arrayIdx, &view, sampler.get(), lay);
 
@@ -249,7 +234,7 @@ public:
 		const TextureViewImpl& view = static_cast<const TextureViewImpl&>(*texView);
 		const TextureImpl& tex = view.getTextureImpl();
 		ANKI_ASSERT(tex.isSubresourceGoodForSampling(view.getSubresource()));
-		const VkImageLayout lay = tex.computeLayout(TextureUsageBit::ALL_SAMPLED & tex.getTextureUsage(), 0);
+		const VkImageLayout lay = tex.computeLayout(TextureUsageBit::kAllSampled & tex.getTextureUsage(), 0);
 
 		m_dsetState[set].bindTexture(binding, arrayIdx, &view, lay);
 
@@ -268,8 +253,8 @@ public:
 		commandCommon();
 		m_dsetState[set].bindImage(binding, arrayIdx, img.get());
 
-		const Bool isPresentable =
-			!!(static_cast<const TextureViewImpl&>(*img).getTextureImpl().getTextureUsage() & TextureUsageBit::PRESENT);
+		const Bool isPresentable = !!(static_cast<const TextureViewImpl&>(*img).getTextureImpl().getTextureUsage()
+									  & TextureUsageBit::kPresent);
 		if(isPresentable)
 		{
 			m_renderedToDefaultFb = true;
@@ -292,7 +277,7 @@ public:
 	}
 
 	void beginRenderPassInternal(const FramebufferPtr& fb,
-								 const Array<TextureUsageBit, MAX_COLOR_ATTACHMENTS>& colorAttachmentUsages,
+								 const Array<TextureUsageBit, kMaxColorRenderTargets>& colorAttachmentUsages,
 								 TextureUsageBit depthStencilAttachmentUsage, U32 minx, U32 miny, U32 width,
 								 U32 height);
 
@@ -314,13 +299,13 @@ public:
 	void traceRaysInternal(const BufferPtr& sbtBuffer, PtrSize sbtBufferOffset, U32 sbtRecordSize,
 						   U32 hitGroupSbtRecordCount, U32 rayTypeCount, U32 width, U32 height, U32 depth);
 
-	void resetOcclusionQueryInternal(const OcclusionQueryPtr& query);
+	void resetOcclusionQueriesInternal(ConstWeakArray<OcclusionQuery*> queries);
 
 	void beginOcclusionQueryInternal(const OcclusionQueryPtr& query);
 
 	void endOcclusionQueryInternal(const OcclusionQueryPtr& query);
 
-	void resetTimestampQueryInternal(const TimestampQueryPtr& query);
+	void resetTimestampQueriesInternal(ConstWeakArray<TimestampQuery*> queries);
 
 	void writeTimestampInternal(const TimestampQueryPtr& query);
 
@@ -328,7 +313,7 @@ public:
 
 	void clearTextureViewInternal(const TextureViewPtr& texView, const ClearValue& clearValue);
 
-	void pushSecondLevelCommandBufferInternal(const CommandBufferPtr& cmdb);
+	void pushSecondLevelCommandBuffersInternal(ConstWeakArray<CommandBuffer*> cmdbs);
 
 	// To enable using Anki's commandbuffers for external workloads
 	void beginRecordingExt()
@@ -338,32 +323,14 @@ public:
 
 	void endRecording();
 
-	void setTextureBarrierInternal(const TexturePtr& tex, TextureUsageBit prevUsage, TextureUsageBit nextUsage,
-								   const TextureSubresourceInfo& subresource);
-
-	void setTextureSurfaceBarrierInternal(const TexturePtr& tex, TextureUsageBit prevUsage, TextureUsageBit nextUsage,
-										  const TextureSurfaceInfo& surf);
-
-	void setTextureVolumeBarrierInternal(const TexturePtr& tex, TextureUsageBit prevUsage, TextureUsageBit nextUsage,
-										 const TextureVolumeInfo& vol);
-
-	void setTextureBarrierRangeInternal(const TexturePtr& tex, TextureUsageBit prevUsage, TextureUsageBit nextUsage,
-										const VkImageSubresourceRange& range);
-
-	void setBufferBarrierInternal(VkPipelineStageFlags srcStage, VkAccessFlags srcAccess, VkPipelineStageFlags dstStage,
-								  VkAccessFlags dstAccess, PtrSize offset, PtrSize size, VkBuffer buff);
-
-	void setBufferBarrierInternal(const BufferPtr& buff, BufferUsageBit before, BufferUsageBit after, PtrSize offset,
-								  PtrSize size);
-
-	void setAccelerationStructureBarrierInternal(const AccelerationStructurePtr& as,
-												 AccelerationStructureUsageBit prevUsage,
-												 AccelerationStructureUsageBit nextUsage);
+	void setPipelineBarrierInternal(ConstWeakArray<TextureBarrierInfo> textures,
+									ConstWeakArray<BufferBarrierInfo> buffers,
+									ConstWeakArray<AccelerationStructureBarrierInfo> accelerationStructures);
 
 	void fillBufferInternal(const BufferPtr& buff, PtrSize offset, PtrSize size, U32 value);
 
-	void writeOcclusionQueryResultToBufferInternal(const OcclusionQueryPtr& query, PtrSize offset,
-												   const BufferPtr& buff);
+	void writeOcclusionQueriesResultToBufferInternal(ConstWeakArray<OcclusionQuery*> queries, PtrSize offset,
+													 const BufferPtr& buff);
 
 	void bindShaderProgramInternal(const ShaderProgramPtr& prog);
 
@@ -412,12 +379,12 @@ public:
 	void setLineWidthInternal(F32 width);
 
 private:
-	StackAllocator<U8> m_alloc;
+	StackMemoryPool* m_pool = nullptr;
 
 	MicroCommandBufferPtr m_microCmdb;
 	VkCommandBuffer m_handle = VK_NULL_HANDLE;
 	ThreadId m_tid = ~ThreadId(0);
-	CommandBufferFlag m_flags = CommandBufferFlag::NONE;
+	CommandBufferFlag m_flags = CommandBufferFlag::kNone;
 	Bool m_renderedToDefaultFb : 1;
 	Bool m_finalized : 1;
 	Bool m_empty : 1;
@@ -428,15 +395,15 @@ private:
 #endif
 
 	FramebufferPtr m_activeFb;
-	Array<U32, 4> m_renderArea = {0, 0, MAX_U32, MAX_U32};
+	Array<U32, 4> m_renderArea = {0, 0, kMaxU32, kMaxU32};
 	Array<U32, 2> m_fbSize = {0, 0};
 	U32 m_rpCommandCount = 0; ///< Number of drawcalls or pushed cmdbs in rp.
-	Array<TextureUsageBit, MAX_COLOR_ATTACHMENTS> m_colorAttachmentUsages = {};
-	TextureUsageBit m_depthStencilAttachmentUsage = TextureUsageBit::NONE;
+	Array<TextureUsageBit, kMaxColorRenderTargets> m_colorAttachmentUsages = {};
+	TextureUsageBit m_depthStencilAttachmentUsage = TextureUsageBit::kNone;
 
 	PipelineStateTracker m_state;
 
-	Array<DescriptorSetState, MAX_DESCRIPTOR_SETS> m_dsetState;
+	Array<DescriptorSetState, kMaxDescriptorSets> m_dsetState;
 
 	ShaderProgramImpl* m_graphicsProg ANKI_DEBUG_CODE(= nullptr); ///< Last bound graphics program
 	ShaderProgramImpl* m_computeProg ANKI_DEBUG_CODE(= nullptr);
@@ -444,16 +411,14 @@ private:
 
 	VkSubpassContents m_subpassContents = VK_SUBPASS_CONTENTS_MAX_ENUM;
 
-	CommandBufferCommandType m_lastCmdType = CommandBufferCommandType::ANY_OTHER_COMMAND;
-
 	/// @name state_opts
 	/// @{
 	Array<U32, 4> m_viewport = {0, 0, 0, 0};
-	Array<U32, 4> m_scissor = {0, 0, MAX_U32, MAX_U32};
+	Array<U32, 4> m_scissor = {0, 0, kMaxU32, kMaxU32};
 	VkViewport m_lastViewport = {};
 	Bool m_viewportDirty = true;
 	Bool m_scissorDirty = true;
-	VkRect2D m_lastScissor = {{-1, -1}, {MAX_U32, MAX_U32}};
+	VkRect2D m_lastScissor = {{-1, -1}, {kMaxU32, kMaxU32}};
 	Array<U32, 2> m_stencilCompareMasks = {0x5A5A5A5A, 0x5A5A5A5A}; ///< Use a stupid number to initialize.
 	Array<U32, 2> m_stencilWriteMasks = {0x5A5A5A5A, 0x5A5A5A5A};
 	Array<U32, 2> m_stencilReferenceMasks = {0x5A5A5A5A, 0x5A5A5A5A};
@@ -461,62 +426,31 @@ private:
 	Bool m_lineWidthSet = false;
 #endif
 	Bool m_vrsRateDirty = true;
-	VrsRate m_vrsRate = VrsRate::_1x1;
+	VrsRate m_vrsRate = VrsRate::k1x1;
 
 	/// Rebind the above dynamic state. Needed after pushing secondary command buffers (they dirty the state).
 	void rebindDynamicState();
 	/// @}
 
-	/// @name barrier_batch
-	/// @{
-	DynamicArray<VkImageMemoryBarrier> m_imgBarriers;
-	DynamicArray<VkBufferMemoryBarrier> m_buffBarriers;
-	DynamicArray<VkMemoryBarrier> m_memBarriers;
-	U16 m_imgBarrierCount = 0;
-	U16 m_buffBarrierCount = 0;
-	U16 m_memBarrierCount = 0;
-	VkPipelineStageFlags m_srcStageMask = 0;
-	VkPipelineStageFlags m_dstStageMask = 0;
-	/// @}
-
-	/// @name reset_query_batch
-	/// @{
-	class QueryResetAtom
-	{
-	public:
-		VkQueryPool m_pool;
-		U32 m_queryIdx;
-	};
-
-	DynamicArray<QueryResetAtom> m_queryResetAtoms;
-	/// @}
-
-	/// @name write_query_result_batch
-	/// @{
-	class WriteQueryAtom
-	{
-	public:
-		VkQueryPool m_pool;
-		U32 m_queryIdx;
-		VkBuffer m_buffer;
-		PtrSize m_offset;
-	};
-
-	DynamicArray<WriteQueryAtom> m_writeQueryAtoms;
-	/// @}
-
-	/// @name push_second_level_batch
-	/// @{
-	DynamicArray<VkCommandBuffer> m_secondLevelAtoms;
-	U16 m_secondLevelAtomCount = 0;
-	/// @}
-
 	/// Some common operations per command.
-	void commandCommon();
+	ANKI_FORCE_INLINE void commandCommon()
+	{
+		ANKI_ASSERT(!m_finalized);
+#if ANKI_EXTRA_CHECKS
+		++m_commandCount;
+#endif
+		m_empty = false;
 
-	/// Flush batches. Use ANKI_CMD on every vkCmdXXX to do that automatically and call it manually before adding to a
-	/// batch.
-	void flushBatches(CommandBufferCommandType type);
+		if(ANKI_UNLIKELY(!m_beganRecording))
+		{
+			beginRecording();
+			m_beganRecording = true;
+		}
+
+		ANKI_ASSERT(Thread::getCurrentThreadId() == m_tid
+					&& "Commands must be recorder and flushed by the thread this command buffer was created");
+		ANKI_ASSERT(m_handle);
+	}
 
 	void drawcallCommon();
 
@@ -529,15 +463,8 @@ private:
 
 	Bool secondLevel() const
 	{
-		return !!(m_flags & CommandBufferFlag::SECOND_LEVEL);
+		return !!(m_flags & CommandBufferFlag::kSecondLevel);
 	}
-
-	/// Flush batched image and buffer barriers.
-	void flushBarriers();
-
-	void flushQueryResets();
-
-	void flushWriteQueryResults();
 
 	void setImageBarrier(VkPipelineStageFlags srcStage, VkAccessFlags srcAccess, VkImageLayout prevLayout,
 						 VkPipelineStageFlags dstStage, VkAccessFlags dstAccess, VkImageLayout newLayout, VkImage img,

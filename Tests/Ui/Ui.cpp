@@ -98,7 +98,7 @@ ANKI_TEST(Ui, Ui)
 			timer.start();
 
 			canvas->handleInput();
-			if(in->getKey(KeyCode::ESCAPE))
+			if(in->getKey(KeyCode::kEscape))
 			{
 				done = true;
 			}
@@ -122,18 +122,22 @@ ANKI_TEST(Ui, Ui)
 			}
 
 			CommandBufferInitInfo cinit;
-			cinit.m_flags = CommandBufferFlag::GENERAL_WORK | CommandBufferFlag::SMALL_BATCH;
+			cinit.m_flags = CommandBufferFlag::kGeneralWork | CommandBufferFlag::kSmallBatch;
 			CommandBufferPtr cmdb = gr->newCommandBuffer(cinit);
 
-			cmdb->setTextureBarrier(presentTex, TextureUsageBit::NONE, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE,
-									TextureSubresourceInfo());
+			TextureBarrierInfo barrier;
+			barrier.m_previousUsage = TextureUsageBit::kNone;
+			barrier.m_nextUsage = TextureUsageBit::kFramebufferWrite;
+			barrier.m_texture = presentTex.get();
+			cmdb->setPipelineBarrier({&barrier, 1}, {}, {});
 
-			cmdb->beginRenderPass(fb, {{TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE}}, {});
+			cmdb->beginRenderPass(fb, {{TextureUsageBit::kFramebufferWrite}}, {});
 			canvas->appendToCommandBuffer(cmdb);
 			cmdb->endRenderPass();
 
-			cmdb->setTextureBarrier(presentTex, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE, TextureUsageBit::PRESENT,
-									TextureSubresourceInfo());
+			barrier.m_previousUsage = TextureUsageBit::kFramebufferWrite;
+			barrier.m_nextUsage = TextureUsageBit::kPresent;
+			cmdb->setPipelineBarrier({&barrier, 1}, {}, {});
 
 			cmdb->flush();
 

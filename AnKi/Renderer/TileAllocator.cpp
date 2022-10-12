@@ -15,8 +15,8 @@ public:
 	U64 m_lightUuid = 0;
 	U32 m_lightDrawcallCount = 0;
 	Array<U32, 4> m_viewport = {};
-	Array<U32, 4> m_subTiles = {MAX_U32, MAX_U32, MAX_U32, MAX_U32};
-	U32 m_superTile = MAX_U32;
+	Array<U32, 4> m_subTiles = {kMaxU32, kMaxU32, kMaxU32, kMaxU32};
+	U32 m_superTile = kMaxU32;
 	U8 m_lightLod = 0;
 	U8 m_lightFace = 0;
 };
@@ -35,12 +35,12 @@ public:
 
 TileAllocator::~TileAllocator()
 {
-	m_lightInfoToTileIdx.destroy(m_alloc);
-	m_allTiles.destroy(m_alloc);
-	m_lodFirstTileIndex.destroy(m_alloc);
+	m_lightInfoToTileIdx.destroy(*m_pool);
+	m_allTiles.destroy(*m_pool);
+	m_lodFirstTileIndex.destroy(*m_pool);
 }
 
-void TileAllocator::init(HeapAllocator<U8> alloc, U32 tileCountX, U32 tileCountY, U32 lodCount, Bool enableCaching)
+void TileAllocator::init(HeapMemoryPool* pool, U32 tileCountX, U32 tileCountY, U32 lodCount, Bool enableCaching)
 {
 	// Preconditions
 	ANKI_ASSERT(tileCountX > 0);
@@ -51,9 +51,9 @@ void TileAllocator::init(HeapAllocator<U8> alloc, U32 tileCountX, U32 tileCountY
 	m_tileCountX = U16(tileCountX);
 	m_tileCountY = U16(tileCountY);
 	m_lodCount = U8(lodCount);
-	m_alloc = alloc;
+	m_pool = pool;
 	m_cachingEnabled = enableCaching;
-	m_lodFirstTileIndex.create(m_alloc, lodCount + 1);
+	m_lodFirstTileIndex.create(*m_pool, lodCount + 1);
 
 	// Create the tile array & index ranges
 	U32 tileCount = 0;
@@ -69,7 +69,7 @@ void TileAllocator::init(HeapAllocator<U8> alloc, U32 tileCountX, U32 tileCountY
 		tileCount += lodTileCountX * lodTileCountY;
 	}
 	ANKI_ASSERT(tileCount >= tileCountX * tileCountY);
-	m_allTiles.create(m_alloc, tileCount);
+	m_allTiles.create(*m_pool, tileCount);
 	m_lodFirstTileIndex[lodCount] = tileCount - 1;
 
 	// Init the tiles
@@ -118,7 +118,7 @@ void TileAllocator::init(HeapAllocator<U8> alloc, U32 tileCountX, U32 tileCountY
 
 void TileAllocator::updateSubTiles(const Tile& updateFrom)
 {
-	if(updateFrom.m_subTiles[0] == MAX_U32)
+	if(updateFrom.m_subTiles[0] == kMaxU32)
 	{
 		return;
 	}
@@ -138,7 +138,7 @@ void TileAllocator::updateSubTiles(const Tile& updateFrom)
 
 void TileAllocator::updateSuperTiles(const Tile& updateFrom)
 {
-	if(updateFrom.m_superTile != MAX_U32)
+	if(updateFrom.m_superTile != kMaxU32)
 	{
 		m_allTiles[updateFrom.m_superTile].m_lightUuid = 0;
 		m_allTiles[updateFrom.m_superTile].m_lastUsedTimestamp = updateFrom.m_lastUsedTimestamp;
@@ -164,7 +164,7 @@ Bool TileAllocator::searchTileRecursively(U32 crntTileIdx, U32 crntTileLod, U32 
 			return true;
 		}
 	}
-	else if(tile.m_subTiles[0] != MAX_U32)
+	else if(tile.m_subTiles[0] != kMaxU32)
 	{
 		// Move down the hierarchy
 
@@ -242,7 +242,7 @@ TileAllocatorResult TileAllocator::allocate(Timestamp crntTimestamp, Timestamp l
 			if(tile.m_lightUuid != lightUuid || tile.m_lightLod != lod || tile.m_lightFace != lightFace)
 			{
 				// Cache entry is wrong, remove it
-				m_lightInfoToTileIdx.erase(m_alloc, it);
+				m_lightInfoToTileIdx.erase(*m_pool, it);
 			}
 			else
 			{
@@ -264,16 +264,16 @@ TileAllocatorResult TileAllocator::allocate(Timestamp crntTimestamp, Timestamp l
 
 				updateTileHierarchy(tile);
 
-				return (needsReRendering) ? TileAllocatorResult::ALLOCATION_SUCCEEDED : TileAllocatorResult::CACHED;
+				return (needsReRendering) ? TileAllocatorResult::kAllocationSucceded : TileAllocatorResult::kCached;
 			}
 		}
 	}
 
 	// Start searching for a suitable tile. Do a hieratchical search to end up with better locality and not better
 	// utilization of the atlas' space
-	U32 emptyTileIdx = MAX_U32;
-	U32 toKickTileIdx = MAX_U32;
-	Timestamp tileToKickMinTimestamp = MAX_TIMESTAMP;
+	U32 emptyTileIdx = kMaxU32;
+	U32 toKickTileIdx = kMaxU32;
+	Timestamp tileToKickMinTimestamp = kMaxTimestamp;
 	const U32 maxLod = m_lodCount - 1;
 	if(lod == maxLod)
 	{
@@ -307,18 +307,18 @@ TileAllocatorResult TileAllocator::allocate(Timestamp crntTimestamp, Timestamp l
 	}
 
 	U32 allocatedTileIdx;
-	if(emptyTileIdx != MAX_U32)
+	if(emptyTileIdx != kMaxU32)
 	{
 		allocatedTileIdx = emptyTileIdx;
 	}
-	else if(toKickTileIdx != MAX_U32)
+	else if(toKickTileIdx != kMaxU32)
 	{
 		allocatedTileIdx = toKickTileIdx;
 	}
 	else
 	{
 		// Out of tiles
-		return TileAllocatorResult::ALLOCATION_FAILED;
+		return TileAllocatorResult::kAllocationFailed;
 	}
 
 	// Allocation succedded, need to do some bookkeeping
@@ -337,14 +337,14 @@ TileAllocatorResult TileAllocator::allocate(Timestamp crntTimestamp, Timestamp l
 	// Update the cache
 	if(m_cachingEnabled)
 	{
-		m_lightInfoToTileIdx.emplace(m_alloc, key, allocatedTileIdx);
+		m_lightInfoToTileIdx.emplace(*m_pool, key, allocatedTileIdx);
 	}
 
 	// Return
 	tileViewport = {allocatedTile.m_viewport[0], allocatedTile.m_viewport[1], allocatedTile.m_viewport[2],
 					allocatedTile.m_viewport[3]};
 
-	return TileAllocatorResult::ALLOCATION_SUCCEEDED;
+	return TileAllocatorResult::kAllocationSucceded;
 }
 
 void TileAllocator::invalidateCache(U64 lightUuid, U32 lightFace)
@@ -359,7 +359,7 @@ void TileAllocator::invalidateCache(U64 lightUuid, U32 lightFace)
 	auto it = m_lightInfoToTileIdx.find(key);
 	if(it != m_lightInfoToTileIdx.getEnd())
 	{
-		m_lightInfoToTileIdx.erase(m_alloc, it);
+		m_lightInfoToTileIdx.erase(*m_pool, it);
 	}
 }
 

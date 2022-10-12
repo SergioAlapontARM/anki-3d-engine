@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <AnKi/Util/Allocator.h>
+#include <AnKi/Util/MemoryPool.h>
 #include <AnKi/Util/Forward.h>
 #include <AnKi/Util/Array.h>
 
@@ -18,12 +18,12 @@ namespace anki {
 /// allocations. Can be used like:
 /// @code
 /// Function<Error(U32, F32), 16> func;
-/// func.init(allocator, [&someInt](U32 u, F32 f) {someInt = xxx + u + f; return Error::NONE;});
+/// func.init(pool, [&someInt](U32 u, F32 f) {someInt = xxx + u + f; return Error::kNone;});
 /// func.call(10, 1.2f);
 /// @endcode
-/// @tparam T_INLINE_STORAGE_SIZE Optional inline storage to avoid deallocations (small object optimization)
-template<typename TReturn, typename... TArgs, PtrSize T_INLINE_STORAGE_SIZE>
-class Function<TReturn(TArgs...), T_INLINE_STORAGE_SIZE>
+/// @tparam kTInlineStorageSize Optional inline storage to avoid deallocations (small object optimization)
+template<typename TReturn, typename... TArgs, PtrSize kTInlineStorageSize>
+class Function<TReturn(TArgs...), kTInlineStorageSize>
 {
 public:
 	Function() = default;
@@ -38,16 +38,16 @@ public:
 	Function(const Function&) = delete;
 
 	/// Same as init().
-	template<typename TAlloc, typename T>
-	Function(TAlloc alloc, const T& func)
+	template<typename TMemPool, typename T>
+	Function(TMemPool& pool, const T& func)
 	{
-		init(alloc, func);
+		init(pool, func);
 	}
 
 	// Does nothing important.
 	~Function()
 	{
-		ANKI_ASSERT(getState() == STATE_UNINITIALIZED && "Forgot to call destroy()");
+		ANKI_ASSERT(getState() == kStateUninitialized && "Forgot to call destroy()");
 	}
 
 	// Non-copyable.
@@ -56,32 +56,32 @@ public:
 	/// Move.
 	Function& operator=(Function&& b)
 	{
-		ANKI_ASSERT(getState() == STATE_UNINITIALIZED);
+		ANKI_ASSERT(getState() == kStateUninitialized);
 		m_state = b.m_state;
-		b.m_state = STATE_UNINITIALIZED;
+		b.m_state = kStateUninitialized;
 		memcpy(&m_callableInlineStorage[0], &b.m_callableInlineStorage[0], sizeof(m_callableInlineStorage));
 		return *this;
 	}
 
 	/// Initialize the function.
-	/// @param alloc The allocator (it might be used).
+	/// @param pool The memory pool (it might be used).
 	/// @param func The lambda.
-	template<typename TAlloc, typename T>
-	void init(TAlloc alloc, const T& func)
+	template<typename TMemPool, typename T>
+	void init(TMemPool& pool, const T& func)
 	{
-		ANKI_ASSERT(getState() == STATE_UNINITIALIZED);
+		ANKI_ASSERT(getState() == kStateUninitialized);
 
 		// Init storage
-		constexpr Bool useInlineStorage = sizeof(T) <= INLINE_STORAGE_SIZE && std::is_trivially_copyable<T>::value
+		constexpr Bool useInlineStorage = sizeof(T) <= kInlineStorageSize && std::is_trivially_copyable<T>::value
 										  && std::is_trivially_destructible<T>::value;
 		if(useInlineStorage)
 		{
-			setState(STATE_INLINE_STORAGE);
+			setState(kStateInlineStorage);
 			memcpy(&m_callableInlineStorage[0], &func, sizeof(func));
 
 			setFunctionCallback([](const Function& self, TArgs... args) -> TReturn {
 				// Yes I know, a const_cast hack follows. If the T was in some pointer then all would be fine. Look
-				// at the setFunctionCallback() of the STATE_ALLOCATED. Only a static_cast there. It's unfair.
+				// at the setFunctionCallback() of the kStateAllocated. Only a static_cast there. It's unfair.
 				const T* t0 = reinterpret_cast<const T*>(&self.m_callableInlineStorage[0]);
 				T* t1 = const_cast<T*>(t0);
 				return (*t1)(args...);
@@ -89,9 +89,9 @@ public:
 		}
 		else
 		{
-			setState(STATE_ALLOCATED);
+			setState(kStateAllocated);
 			using CallableT = Callable<T>;
-			CallableT* callable = alloc.template newInstance<CallableT>(func);
+			CallableT* callable = newInstance<CallableT>(pool, func);
 			m_callablePtr = callable;
 
 			callable->m_size = sizeof(CallableT);
@@ -112,17 +112,17 @@ public:
 	}
 
 	/// Destroy the object.
-	template<typename TAlloc>
-	void destroy(TAlloc alloc)
+	template<typename TMemPool>
+	void destroy(TMemPool& pool)
 	{
-		if(getState() == STATE_ALLOCATED)
+		if(getState() == kStateAllocated)
 		{
 			ANKI_ASSERT(m_callablePtr && m_callablePtr->m_destroyCallback);
 			m_callablePtr->m_destroyCallback(*m_callablePtr);
-			alloc.getMemoryPool().free(m_callablePtr);
+			pool.free(m_callablePtr);
 		}
 
-		m_state = STATE_UNINITIALIZED;
+		m_state = kStateUninitialized;
 	}
 
 	/// Call the Function with some arguments.
@@ -138,16 +138,16 @@ public:
 	}
 
 	/// Copy from another.
-	template<typename TAlloc>
-	Function& copy(const Function& other, TAlloc alloc)
+	template<typename TMemPool>
+	Function& copy(const Function& other, TMemPool& pool)
 	{
-		ANKI_ASSERT(getState() == STATE_UNINITIALIZED && "Need to destroy it first");
+		ANKI_ASSERT(getState() == kStateUninitialized && "Need to destroy it first");
 
-		if(other.getState() == STATE_UNINITIALIZED)
+		if(other.getState() == kStateUninitialized)
 		{
 			// Nothing to do
 		}
-		else if(other.getState() == STATE_INLINE_STORAGE)
+		else if(other.getState() == kStateInlineStorage)
 		{
 			// It should be trivially copyable, can use memcpy then
 			m_state = other.m_state;
@@ -155,13 +155,13 @@ public:
 		}
 		else
 		{
-			ANKI_ASSERT(other.getState() == STATE_ALLOCATED);
+			ANKI_ASSERT(other.getState() == kStateAllocated);
 			m_state = other.m_state;
 
 			// Allocate callable
 			ANKI_ASSERT(other.m_callablePtr && other.m_callablePtr->m_alignment > 0 && other.m_callablePtr->m_size > 0);
 			m_callablePtr = static_cast<CallableBase*>(
-				alloc.getMemoryPool().allocate(other.m_callablePtr->m_size, other.m_callablePtr->m_alignment));
+				pool.allocate(other.m_callablePtr->m_size, other.m_callablePtr->m_alignment));
 
 			// Copy
 			other.m_callablePtr->m_copyCallback(*other.m_callablePtr, *m_callablePtr);
@@ -212,10 +212,10 @@ private:
 		Callable& operator=(const Callable&) = delete; // You won't need it
 	};
 
-	static constexpr PtrSize STATE_UNINITIALIZED = PtrSize(0b1001) << PtrSize(60);
-	static constexpr PtrSize STATE_ALLOCATED = PtrSize(0b1101) << PtrSize(60);
-	static constexpr PtrSize STATE_INLINE_STORAGE = PtrSize(0b1011) << PtrSize(60);
-	static constexpr PtrSize STATE_ALL_BITS = PtrSize(0b1111) << PtrSize(60);
+	static constexpr PtrSize kStateUninitialized = PtrSize(0b1001) << PtrSize(60);
+	static constexpr PtrSize kStateAllocated = PtrSize(0b1101) << PtrSize(60);
+	static constexpr PtrSize kStateInlineStorage = PtrSize(0b1011) << PtrSize(60);
+	static constexpr PtrSize kStateAllBits = PtrSize(0b1111) << PtrSize(60);
 	static_assert(sizeof(void*) == 8, "Wrong assumption");
 
 	static constexpr PtrSize lmax(PtrSize a, PtrSize b)
@@ -223,44 +223,43 @@ private:
 		return (a > b) ? a : b;
 	}
 
-	static constexpr PtrSize INLINE_STORAGE_SIZE =
-		lmax(T_INLINE_STORAGE_SIZE, lmax(ANKI_SAFE_ALIGNMENT, sizeof(void*)));
+	static constexpr PtrSize kInlineStorageSize = lmax(kTInlineStorageSize, lmax(ANKI_SAFE_ALIGNMENT, sizeof(void*)));
 
 	union
 	{
 		CallableBase* m_callablePtr;
-		alignas(ANKI_SAFE_ALIGNMENT) Array<U8, INLINE_STORAGE_SIZE> m_callableInlineStorage;
+		alignas(ANKI_SAFE_ALIGNMENT) Array<U8, kInlineStorageSize> m_callableInlineStorage;
 	};
 
 	union
 	{
 		// Hide the state in the high bits of the m_functionCallback pointer.
-		PtrSize m_state = STATE_UNINITIALIZED;
+		PtrSize m_state = kStateUninitialized;
 
 		FunctionCallback m_functionCallback;
 	};
 
 	PtrSize getState() const
 	{
-		const PtrSize s = m_state & STATE_ALL_BITS;
-		ANKI_ASSERT(s == STATE_UNINITIALIZED || s == STATE_ALLOCATED || s == STATE_INLINE_STORAGE);
+		const PtrSize s = m_state & kStateAllBits;
+		ANKI_ASSERT(s == kStateUninitialized || s == kStateAllocated || s == kStateInlineStorage);
 		return s;
 	}
 
 	void setState(PtrSize s)
 	{
-		ANKI_ASSERT(s == STATE_UNINITIALIZED || s == STATE_ALLOCATED || s == STATE_INLINE_STORAGE);
-		m_state = (m_state & ~STATE_ALL_BITS) | s;
+		ANKI_ASSERT(s == kStateUninitialized || s == kStateAllocated || s == kStateInlineStorage);
+		m_state = (m_state & ~kStateAllBits) | s;
 	}
 
 	FunctionCallback getFunctionCallback() const
 	{
-		return numberToPtr<FunctionCallback>(m_state & ~STATE_ALL_BITS);
+		return numberToPtr<FunctionCallback>(m_state & ~kStateAllBits);
 	}
 
 	void setFunctionCallback(FunctionCallback f)
 	{
-		m_state = (m_state & STATE_ALL_BITS) | ptrToNumber(f);
+		m_state = (m_state & kStateAllBits) | ptrToNumber(f);
 		ANKI_ASSERT(f == getFunctionCallback());
 	}
 };

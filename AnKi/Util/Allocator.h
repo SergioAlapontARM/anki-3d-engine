@@ -6,7 +6,7 @@
 #pragma once
 
 #include <AnKi/Util/Assert.h>
-#include <AnKi/Util/Memory.h>
+#include <AnKi/Util/MemoryPool.h>
 #include <AnKi/Util/Logger.h>
 #include <AnKi/Util/Forward.h>
 #include <cstddef> // For ptrdiff_t
@@ -93,8 +93,8 @@ public:
 			ANKI_UTIL_LOGF("Out of memory");
 		}
 
-		::new(m_pool) TPool(allocCb, allocCbUserData, std::forward<TArgs>(args)...);
-
+		::new(m_pool) TPool();
+		m_pool->init(allocCb, allocCbUserData, std::forward<TArgs>(args)...);
 		m_pool->retain();
 	}
 
@@ -215,7 +215,7 @@ public:
 	/// Get the max allocation size
 	size_type max_size() const
 	{
-		return MAX_PTR_SIZE;
+		return kMaxPtrSize;
 	}
 
 	/// Get the memory pool
@@ -294,13 +294,23 @@ public:
 	/// @note This is AnKi specific.
 	/// @note The output is a parameter to work with template deduction.
 	template<typename TValue, typename TSize>
-	void newArray(size_type n, WeakArray<TValue, TSize>& out);
+	void newArray(size_type n, WeakArray<TValue, TSize>& out)
+	{
+		TValue* arr = newArray<TValue>(n);
+		ANKI_ASSERT(n < std::numeric_limits<TSize>::max());
+		out.setArray(arr, TSize(n));
+	}
 
 	/// Allocate a new array of objects and call their constructor.
 	/// @note This is AnKi specific.
 	/// @note The output is a parameter to work with template deduction.
 	template<typename TValue, typename TSize>
-	void newArray(size_type n, const TValue& v, WeakArray<TValue, TSize>& out);
+	void newArray(size_type n, const TValue& v, WeakArray<TValue, TSize>& out)
+	{
+		TValue* arr = newArray<TValue>(n, v);
+		ANKI_ASSERT(n < std::numeric_limits<TSize>::max());
+		out.setArray(arr, TSize(n));
+	}
 
 	/// Call the destructor and deallocate an object
 	/// @note This is AnKi specific
@@ -341,7 +351,11 @@ public:
 	/// Call the destructor and deallocate an array of objects
 	/// @note This is AnKi specific
 	template<typename TValue, typename TSize>
-	void deleteArray(WeakArray<TValue, TSize>& arr);
+	void deleteArray(WeakArray<TValue, TSize>& arr)
+	{
+		deleteArray(arr.getBegin(), arr.getSize());
+		arr.setArray(nullptr, 0);
+	}
 
 private:
 	TPool* m_pool = nullptr;
@@ -410,19 +424,15 @@ inline Bool operator!=(const GenericPoolAllocator<T1, TPool>&, const AnotherAllo
 
 /// Allocator using the base memory pool.
 template<typename T>
-using GenericMemoryPoolAllocator = GenericPoolAllocator<T, BaseMemoryPool>;
+using GenericMemoryPoolAllocator = GenericPoolAllocator<T, RefCountedMemoryPool<BaseMemoryPool>>;
 
 /// Heap based allocator. The default allocator. It uses malloc and free for allocations/deallocations
 template<typename T>
-using HeapAllocator = GenericPoolAllocator<T, HeapMemoryPool>;
+using HeapAllocator = GenericPoolAllocator<T, RefCountedMemoryPool<HeapMemoryPool>>;
 
 /// Allocator that uses a StackMemoryPool
 template<typename T>
-using StackAllocator = GenericPoolAllocator<T, StackMemoryPool>;
-
-/// Allocator that uses a ChainMemoryPool
-template<typename T>
-using ChainAllocator = GenericPoolAllocator<T, ChainMemoryPool>;
+using StackAllocator = GenericPoolAllocator<T, RefCountedMemoryPool<StackMemoryPool>>;
 
 #define ANKI_FRIEND_ALLOCATOR \
 	template<typename, typename> \
@@ -430,5 +440,3 @@ using ChainAllocator = GenericPoolAllocator<T, ChainMemoryPool>;
 /// @}
 
 } // end namespace anki
-
-#include <AnKi/Util/Allocator.inl.h>

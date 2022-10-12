@@ -22,40 +22,33 @@ namespace anki {
 /// Flags that affect visibility tests.
 enum class FrustumComponentVisibilityTestFlag : U32
 {
-	NONE = 0,
-	RENDER_COMPONENTS = 1 << 0,
-	LIGHT_COMPONENTS = 1 << 1,
-	LENS_FLARE_COMPONENTS = 1 << 2,
-	SHADOW_CASTERS = 1 << 3, ///< Render components that cast shadow
-	POINT_LIGHT_SHADOWS_ENABLED = 1 << 4,
-	SPOT_LIGHT_SHADOWS_ENABLED = 1 << 5,
-	DIRECTIONAL_LIGHT_SHADOWS_ALL_CASCADES = 1 << 6,
-	DIRECTIONAL_LIGHT_SHADOWS_1_CASCADE = 1 << 7,
-	REFLECTION_PROBES = 1 << 8,
-	REFLECTION_PROXIES = 1 << 9,
-	OCCLUDERS = 1 << 10,
-	DECALS = 1 << 11,
-	FOG_DENSITY_COMPONENTS = 1 << 12,
-	GLOBAL_ILLUMINATION_PROBES = 1 << 13,
-	EARLY_Z = 1 << 14,
-	GENERIC_COMPUTE_JOB_COMPONENTS = 1 << 15,
-	RAY_TRACING_SHADOWS = 1 << 16,
-	RAY_TRACING_GI = 1 << 17,
-	RAY_TRACING_REFLECTIONS = 1 << 18,
-	RAY_TRACING_PATH_TRACING = 1 << 19,
-	UI_COMPONENTS = 1 << 20,
-	SKYBOX = 1 << 21,
+	kNone = 0,
+	kRenderComponents = 1 << 0,
+	kShadowCasterRenderComponents = 1 << 1, ///< Render components that cast shadow
+	kLights = 1 << 2,
+	kLensFlares = 1 << 3,
+	kReflectionProbes = 1 << 4,
+	kOccluders = 1 << 5,
+	kDecals = 1 << 6,
+	kFogDensityVolumes = 1 << 7,
+	kGlobalIlluminationProbes = 1 << 8,
+	kGenericComputeJobs = 1 << 9,
+	kRayTracingShadows = 1 << 10,
+	kRayTracingGi = 1 << 11,
+	kRayTracingReflections = 1 << 12,
+	kRayTracingPathTracing = 1 << 13,
+	kUi = 1 << 14,
+	kSkybox = 1 << 15,
+	kEarlyZ = 1 << 16,
+	kPointLightShadowsEnabled = 1 << 17,
+	kSpotLightShadowsEnabled = 1 << 18,
 
-	ALL = RENDER_COMPONENTS | LIGHT_COMPONENTS | LENS_FLARE_COMPONENTS | SHADOW_CASTERS | POINT_LIGHT_SHADOWS_ENABLED
-		  | SPOT_LIGHT_SHADOWS_ENABLED | DIRECTIONAL_LIGHT_SHADOWS_ALL_CASCADES | DIRECTIONAL_LIGHT_SHADOWS_1_CASCADE
-		  | REFLECTION_PROBES | REFLECTION_PROXIES | OCCLUDERS | DECALS | FOG_DENSITY_COMPONENTS
-		  | GLOBAL_ILLUMINATION_PROBES | EARLY_Z | GENERIC_COMPUTE_JOB_COMPONENTS | RAY_TRACING_SHADOWS | RAY_TRACING_GI
-		  | RAY_TRACING_REFLECTIONS | RAY_TRACING_PATH_TRACING | UI_COMPONENTS | SKYBOX,
+	kAll = kRenderComponents | kShadowCasterRenderComponents | kLights | kLensFlares | kReflectionProbes | kOccluders
+		   | kDecals | kFogDensityVolumes | kGlobalIlluminationProbes | kGenericComputeJobs | kRayTracingShadows
+		   | kRayTracingGi | kRayTracingReflections | kRayTracingPathTracing | kUi | kSkybox | kEarlyZ
+		   | kPointLightShadowsEnabled | kSpotLightShadowsEnabled,
 
-	ALL_SHADOWS_ENABLED =
-		POINT_LIGHT_SHADOWS_ENABLED | SPOT_LIGHT_SHADOWS_ENABLED | DIRECTIONAL_LIGHT_SHADOWS_ALL_CASCADES,
-
-	ALL_RAY_TRACING = RAY_TRACING_SHADOWS | RAY_TRACING_GI | RAY_TRACING_REFLECTIONS | RAY_TRACING_PATH_TRACING
+	kAllRayTracing = kRayTracingShadows | kRayTracingGi | kRayTracingReflections | kRayTracingPathTracing,
 };
 ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(FrustumComponentVisibilityTestFlag)
 
@@ -81,9 +74,9 @@ public:
 
 	void setFrustumType(FrustumType type)
 	{
-		ANKI_ASSERT(type >= FrustumType::FIRST && type < FrustumType::COUNT);
+		ANKI_ASSERT(type >= FrustumType::kFirst && type < FrustumType::kCount);
 		m_frustumType = type;
-		if(m_frustumType == FrustumType::PERSPECTIVE)
+		if(m_frustumType == FrustumType::kPerspective)
 		{
 			setPerspective(0.1f, 100.0f, toRad(45.0f), toRad(45.0f));
 		}
@@ -95,15 +88,15 @@ public:
 
 	FrustumType getFrustumType() const
 	{
-		ANKI_ASSERT(m_frustumType != FrustumType::COUNT);
+		ANKI_ASSERT(m_frustumType != FrustumType::kCount);
 		return m_frustumType;
 	}
 
 	void setPerspective(F32 near, F32 far, F32 fovX, F32 fovY)
 	{
 		ANKI_ASSERT(near > 0.0f && far > 0.0f && near < far);
-		ANKI_ASSERT(fovX > 0.0f && fovY > 0.0f && fovX < PI && fovY < PI);
-		ANKI_ASSERT(m_frustumType == FrustumType::PERSPECTIVE);
+		ANKI_ASSERT(fovX > 0.0f && fovY > 0.0f && fovX < kPi && fovY < kPi);
+		ANKI_ASSERT(m_frustumType == FrustumType::kPerspective);
 		m_perspective.m_near = near;
 		m_perspective.m_far = far;
 		m_perspective.m_fovX = fovX;
@@ -115,7 +108,7 @@ public:
 	{
 		ANKI_ASSERT(near > 0.0f && far > 0.0f && near < far);
 		ANKI_ASSERT(right > left && top > bottom);
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		m_ortho.m_near = near;
 		m_ortho.m_far = far;
 		m_ortho.m_right = right;
@@ -149,75 +142,75 @@ public:
 
 	void setFovX(F32 fovx)
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::PERSPECTIVE);
+		ANKI_ASSERT(m_frustumType == FrustumType::kPerspective);
 		m_shapeMarkedForUpdate = true;
 		m_perspective.m_fovX = fovx;
 	}
 
 	F32 getFovX() const
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::PERSPECTIVE);
+		ANKI_ASSERT(m_frustumType == FrustumType::kPerspective);
 		return m_perspective.m_fovX;
 	}
 
 	void setFovY(F32 fovy)
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::PERSPECTIVE);
+		ANKI_ASSERT(m_frustumType == FrustumType::kPerspective);
 		m_shapeMarkedForUpdate = true;
 		m_perspective.m_fovY = fovy;
 	}
 
 	F32 getFovY() const
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::PERSPECTIVE);
+		ANKI_ASSERT(m_frustumType == FrustumType::kPerspective);
 		return m_perspective.m_fovY;
 	}
 
 	F32 getLeft() const
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		return m_ortho.m_left;
 	}
 
 	void setLeft(F32 value)
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		m_ortho.m_left = value;
 	}
 
 	F32 getRight() const
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		return m_ortho.m_right;
 	}
 
 	void setRight(F32 value)
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		m_ortho.m_right = value;
 	}
 
 	F32 getTop() const
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		return m_ortho.m_top;
 	}
 
 	void setTop(F32 value)
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		m_ortho.m_top = value;
 	}
 
 	F32 getBottom() const
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		return m_ortho.m_bottom;
 	}
 
 	void setBottom(F32 value)
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		m_ortho.m_bottom = value;
 	}
 
@@ -247,9 +240,23 @@ public:
 		return m_viewProjMat;
 	}
 
-	const Mat4& getPreviousViewProjectionMatrix() const
+	/// @param nMinusOneFrame The number of the previous frame. If 0 means the previous frame, 1 means the
+	///                       previous-previous frame.
+	const Mat4& getPreviousViewProjectionMatrix(U32 nMinusOneFrame = 0) const
 	{
-		return m_prevViewProjMat;
+		return m_prevViewProjMats[nMinusOneFrame];
+	}
+
+	/// @see getPreviousViewProjectionMatrix.
+	const Mat3x4& getPreviousViewMatrix(U32 nMinusOneFrame = 0) const
+	{
+		return m_prevViewMats[nMinusOneFrame];
+	}
+
+	/// @see getPreviousViewProjectionMatrix.
+	const Mat4& getPreviousProjectionMatrix(U32 nMinusOneFrame = 0) const
+	{
+		return m_prevProjMats[nMinusOneFrame];
 	}
 
 	/// Check if a shape is inside the frustum.
@@ -271,7 +278,7 @@ public:
 	{
 		ANKI_ASSERT(info.m_node == m_node);
 		updated = updateInternal();
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	void setEnabledVisibilityTests(FrustumComponentVisibilityTestFlag bits);
@@ -334,22 +341,32 @@ public:
 	F32 computeShadowCascadeDistance(U32 cascadeIdx) const
 	{
 		return anki::computeShadowCascadeDistance(cascadeIdx, m_shadowCascadesDistancePower,
-												  getEffectiveShadowDistance(), getCascadeCount());
+												  getEffectiveShadowDistance(), getShadowCascadeCount());
+	}
+
+	[[nodiscard]] U32 getShadowCascadeCount() const
+	{
+		return m_shadowCascadeCount;
+	}
+
+	void setShadowCascadeCount(U32 count)
+	{
+		m_shadowCascadeCount = U8(min(count, kMaxShadowCascades));
 	}
 
 	const ConvexHullShape& getPerspectiveBoundingShapeWorldSpace() const
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::PERSPECTIVE);
+		ANKI_ASSERT(m_frustumType == FrustumType::kPerspective);
 		return m_perspective.m_hull;
 	}
 
 	const Obb& getOrthographicBoundingShapeWorldSpace() const
 	{
-		ANKI_ASSERT(m_frustumType == FrustumType::ORTHOGRAPHIC);
+		ANKI_ASSERT(m_frustumType == FrustumType::kOrthographic);
 		return m_ortho.m_obbW;
 	}
 
-	const Array<Plane, U32(FrustumPlaneType::COUNT)>& getViewPlanes() const
+	const Array<Plane, U32(FrustumPlaneType::kCount)>& getViewPlanes() const
 	{
 		return m_viewPlanesW;
 	}
@@ -399,7 +416,7 @@ private:
 
 	SceneNode* m_node;
 
-	FrustumType m_frustumType = FrustumType::COUNT;
+	FrustumType m_frustumType = FrustumType::kCount;
 
 	union
 	{
@@ -409,14 +426,18 @@ private:
 	};
 
 	// View planes
-	Array<Plane, U32(FrustumPlaneType::COUNT)> m_viewPlanesL;
-	Array<Plane, U32(FrustumPlaneType::COUNT)> m_viewPlanesW;
+	Array<Plane, U32(FrustumPlaneType::kCount)> m_viewPlanesL;
+	Array<Plane, U32(FrustumPlaneType::kCount)> m_viewPlanesW;
 
 	Transform m_trf = Transform::getIdentity();
 	Mat4 m_projMat = Mat4::getIdentity(); ///< Projection matrix
 	Mat3x4 m_viewMat = Mat3x4::getIdentity(); ///< View matrix
 	Mat4 m_viewProjMat = Mat4::getIdentity(); ///< View projection matrix
-	Mat4 m_prevViewProjMat = Mat4::getIdentity();
+
+	static constexpr U32 kPrevMatrixHistory = 2;
+	Array<Mat3x4, kPrevMatrixHistory> m_prevViewMats = {Mat3x4::getIdentity(), Mat3x4::getIdentity()};
+	Array<Mat4, kPrevMatrixHistory> m_prevProjMats = {Mat4::getIdentity(), Mat4::getIdentity()};
+	Array<Mat4, kPrevMatrixHistory> m_prevViewProjMats = {Mat4::getIdentity(), Mat4::getIdentity()};
 
 	/// How far to render shadows for this frustum. If negative it's the m_frustum's far.
 	F32 m_effectiveShadowDistance = -1.0f;
@@ -424,7 +445,9 @@ private:
 	/// Defines the the rate of the cascade distances
 	F32 m_shadowCascadesDistancePower = 1.0f;
 
-	Array<F32, MAX_LOD_COUNT - 1> m_maxLodDistances = {};
+	Array<F32, kMaxLodCount - 1> m_maxLodDistances = {};
+
+	U8 m_shadowCascadeCount = 0;
 
 	class
 	{
@@ -434,18 +457,11 @@ private:
 		U32 m_depthMapHeight = 0;
 	} m_coverageBuff; ///< Coverage buffer for extra visibility tests.
 
-	FrustumComponentVisibilityTestFlag m_flags = FrustumComponentVisibilityTestFlag::NONE;
+	FrustumComponentVisibilityTestFlag m_flags = FrustumComponentVisibilityTestFlag::kNone;
 	Bool m_shapeMarkedForUpdate : 1;
 	Bool m_trfMarkedForUpdate : 1;
 
 	Bool updateInternal();
-
-	U32 getCascadeCount() const
-	{
-		return !!(m_flags & FrustumComponentVisibilityTestFlag::DIRECTIONAL_LIGHT_SHADOWS_ALL_CASCADES)
-				   ? MAX_SHADOW_CASCADES2
-				   : 1;
-	}
 };
 /// @}
 

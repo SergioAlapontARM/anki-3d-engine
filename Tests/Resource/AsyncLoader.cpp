@@ -44,7 +44,7 @@ public:
 				if(m_id != static_cast<I32>(x))
 				{
 					ANKI_LOGE("Wrong excecution order");
-					return Error::FUNCTION_FAILED;
+					return Error::kFunctionFailed;
 				}
 			}
 		}
@@ -63,38 +63,38 @@ public:
 		ctx.m_resubmitTask = m_resubmit;
 		m_resubmit = false;
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 };
 
 class MemTask : public AsyncLoaderTask
 {
 public:
-	HeapAllocator<U8> m_alloc;
+	HeapMemoryPool* m_pool;
 	Barrier* m_barrier = nullptr;
 
-	MemTask(HeapAllocator<U8> alloc, Barrier* barrier)
-		: m_alloc(alloc)
+	MemTask(HeapMemoryPool* pool, Barrier* barrier)
+		: m_pool(pool)
 		, m_barrier(barrier)
 	{
 	}
 
 	Error operator()([[maybe_unused]] AsyncLoaderTaskContext& ctx)
 	{
-		void* mem = m_alloc.allocate(10);
+		void* mem = m_pool->allocate(10, 16);
 		if(!mem)
-			return Error::FUNCTION_FAILED;
+			return Error::kFunctionFailed;
 
 		HighRezTimer::sleep(0.1);
 
-		m_alloc.deallocate(mem, 10);
+		m_pool->free(mem);
 
 		if(m_barrier)
 		{
 			m_barrier->wait();
 		}
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 };
 
@@ -102,18 +102,18 @@ public:
 
 ANKI_TEST(Resource, AsyncLoader)
 {
-	HeapAllocator<U8> alloc(allocAligned, nullptr);
+	HeapMemoryPool pool(allocAligned, nullptr);
 
 	// Simple create destroy
 	{
 		AsyncLoader a;
-		a.init(alloc);
+		a.init(&pool);
 	}
 
 	// Simple task that will finish
 	{
 		AsyncLoader a;
-		a.init(alloc);
+		a.init(&pool);
 		Barrier barrier(2);
 
 		a.submitNewTask<Task>(0.0f, &barrier, nullptr);
@@ -123,7 +123,7 @@ ANKI_TEST(Resource, AsyncLoader)
 	// Many tasks that will finish
 	{
 		AsyncLoader a;
-		a.init(alloc);
+		a.init(&pool);
 		Barrier barrier(2);
 		Atomic<U32> counter = {0};
 		const U COUNT = 100;
@@ -148,7 +148,7 @@ ANKI_TEST(Resource, AsyncLoader)
 	// Many tasks that will _not_ finish
 	{
 		AsyncLoader a;
-		a.init(alloc);
+		a.init(&pool);
 
 		for(U i = 0; i < 100; i++)
 		{
@@ -159,7 +159,7 @@ ANKI_TEST(Resource, AsyncLoader)
 	// Tasks that allocate
 	{
 		AsyncLoader a;
-		a.init(alloc);
+		a.init(&pool);
 		Barrier barrier(2);
 
 		for(U i = 0; i < 10; i++)
@@ -171,7 +171,7 @@ ANKI_TEST(Resource, AsyncLoader)
 				pbarrier = &barrier;
 			}
 
-			a.submitNewTask<MemTask>(alloc, pbarrier);
+			a.submitNewTask<MemTask>(&pool, pbarrier);
 		}
 
 		barrier.wait();
@@ -180,18 +180,18 @@ ANKI_TEST(Resource, AsyncLoader)
 	// Tasks that allocate and never finished
 	{
 		AsyncLoader a;
-		a.init(alloc);
+		a.init(&pool);
 
 		for(U i = 0; i < 10; i++)
 		{
-			a.submitNewTask<MemTask>(alloc, nullptr);
+			a.submitNewTask<MemTask>(&pool, nullptr);
 		}
 	}
 
 	// Pause/resume
 	{
 		AsyncLoader a;
-		a.init(alloc);
+		a.init(&pool);
 		Atomic<U32> counter(0);
 		Barrier barrier(2);
 
@@ -217,7 +217,7 @@ ANKI_TEST(Resource, AsyncLoader)
 	// Pause/resume
 	{
 		AsyncLoader a;
-		a.init(alloc);
+		a.init(&pool);
 		Atomic<U32> counter(0);
 		Barrier barrier(2);
 
@@ -252,7 +252,7 @@ ANKI_TEST(Resource, AsyncLoader)
 	// Fuzzy test
 	{
 		AsyncLoader a;
-		a.init(alloc);
+		a.init(&pool);
 		Barrier barrier(2);
 		Atomic<U32> counter = {0};
 

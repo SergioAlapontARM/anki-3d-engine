@@ -8,20 +8,22 @@
 #include <AnKi/Shaders/Common.glsl>
 #include <AnKi/Shaders/TonemappingFunctions.glsl>
 
+const ANKI_RP F32 kMinRoughness = 0.05;
+
 /// Pack 3D normal to 2D vector
 /// See the clean code in comments in revision < r467
 Vec2 packNormal(const Vec3 normal)
 {
-	const F32 SCALE = 1.7777;
-	const F32 scalar1 = (normal.z + 1.0) * (SCALE * 2.0);
+	const F32 scale = 1.7777;
+	const F32 scalar1 = (normal.z + 1.0) * (scale * 2.0);
 	return normal.xy / scalar1 + 0.5;
 }
 
 /// Reverse the packNormal
 Vec3 unpackNormal(const Vec2 enc)
 {
-	const F32 SCALE = 1.7777;
-	const Vec2 nn = enc * (2.0 * SCALE) - SCALE;
+	const F32 scale = 1.7777;
+	const Vec2 nn = enc * (2.0 * scale) - scale;
 	const F32 g = 2.0 / (dot(nn.xy, nn.xy) + 1.0);
 	Vec3 normal;
 	normal.xy = g * nn.xy;
@@ -42,7 +44,7 @@ Vec3 signedOctEncode(Vec3 n)
 	outn.x = n.x * 0.5 + outn.y;
 	outn.y = n.x * -0.5 + outn.y;
 
-	outn.z = saturate(n.z * MAX_F32);
+	outn.z = saturate(n.z * kMaxF32);
 	return outn;
 }
 
@@ -123,16 +125,6 @@ Vec2 unpackUnorm1ToUnorm2(F32 c)
 #endif
 }
 
-const ANKI_RP F32 ABSOLUTE_MAX_EMISSION = 1024.0;
-#if !defined(MAX_EMISSION)
-const ANKI_RP F32 MAX_EMISSION = 30.0; // Max emission. Keep as low as possible and less than ABSOLUTE_MAX_EMISSION
-#endif
-// Round the MAX_EMISSION to fit a U8_UNORM
-const ANKI_RP F32 FIXED_MAX_EMISSION =
-	F32(U32(MAX_EMISSION / ABSOLUTE_MAX_EMISSION * 255.0)) / 255.0 * ABSOLUTE_MAX_EMISSION;
-
-const ANKI_RP F32 MIN_ROUGHNESS = 0.05;
-
 // G-Buffer structure
 struct GbufferInfo
 {
@@ -175,7 +167,7 @@ ANKI_RP Vec3 unpackNormalFromGBuffer(ANKI_RP Vec4 rt2)
 ANKI_RP F32 unpackRoughnessFromGBuffer(ANKI_RP Vec4 rt1)
 {
 	ANKI_RP F32 r = rt1.x;
-	r = r * (1.0 - MIN_ROUGHNESS) + MIN_ROUGHNESS;
+	r = r * (1.0 - kMinRoughness) + kMinRoughness;
 	return r;
 }
 
@@ -193,7 +185,7 @@ void unpackGBufferNoVelocity(ANKI_RP Vec4 rt0, ANKI_RP Vec4 rt1, ANKI_RP Vec4 rt
 
 	g.m_normal = signedOctDecode(rt2.yzw);
 
-	g.m_velocity = Vec2(MAX_F32); // Put something random
+	g.m_velocity = Vec2(kMaxF32); // Put something random
 
 	// Compute reflectance
 	g.m_f0 = mix(g.m_f0, g.m_diffuse, g.m_metallic);

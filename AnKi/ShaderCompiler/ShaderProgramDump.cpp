@@ -13,7 +13,7 @@ namespace anki {
 #define ANKI_TAB "    "
 
 static void disassembleBlockInstance(const ShaderProgramBinaryBlockInstance& instance,
-									 const ShaderProgramBinaryBlock& block, StringListAuto& lines)
+									 const ShaderProgramBinaryBlock& block, StringListRaii& lines)
 {
 	lines.pushBackSprintf(ANKI_TAB ANKI_TAB ANKI_TAB "%-32s set %4u binding %4u size %4u\n", block.m_name.getBegin(),
 						  block.m_set, block.m_binding, instance.m_size);
@@ -30,7 +30,7 @@ static void disassembleBlockInstance(const ShaderProgramBinaryBlockInstance& ins
 	}
 }
 
-static void disassembleBlock(const ShaderProgramBinaryBlock& block, StringListAuto& lines)
+static void disassembleBlock(const ShaderProgramBinaryBlock& block, StringListRaii& lines)
 {
 	lines.pushBackSprintf(ANKI_TAB "%-32s set %4u binding %4u\n", block.m_name.getBegin(), block.m_set,
 						  block.m_binding);
@@ -42,10 +42,10 @@ static void disassembleBlock(const ShaderProgramBinaryBlock& block, StringListAu
 	}
 }
 
-void dumpShaderProgramBinary(const ShaderProgramBinary& binary, StringAuto& humanReadable)
+void dumpShaderProgramBinary(const ShaderProgramBinary& binary, StringRaii& humanReadable)
 {
-	GenericMemoryPoolAllocator<U8> alloc = humanReadable.getAllocator();
-	StringListAuto lines(alloc);
+	BaseMemoryPool& pool = humanReadable.getMemoryPool();
+	StringListRaii lines(&pool);
 
 	if(binary.m_libraryName[0])
 	{
@@ -53,7 +53,7 @@ void dumpShaderProgramBinary(const ShaderProgramBinary& binary, StringAuto& huma
 		lines.pushBackSprintf(ANKI_TAB "%s\n", &binary.m_libraryName[0]);
 	}
 
-	if(binary.m_rayType != MAX_U32)
+	if(binary.m_rayType != kMaxU32)
 	{
 		lines.pushBack("\n**RAY TYPE**\n");
 		lines.pushBackSprintf(ANKI_TAB "%u\n", binary.m_rayType);
@@ -150,10 +150,10 @@ void dumpShaderProgramBinary(const ShaderProgramBinary& binary, StringAuto& huma
 
 			for(const ShaderProgramBinaryStructMember& member : s.m_members)
 			{
-				const CString typeStr = (member.m_type == ShaderVariableDataType::NONE)
+				const CString typeStr = (member.m_type == ShaderVariableDataType::kNone)
 											? &binary.m_structs[member.m_structIndex].m_name[0]
 											: getShaderVariableDataTypeInfo(member.m_type).m_name;
-				const CString dependentMutator = (member.m_dependentMutator != MAX_U32)
+				const CString dependentMutator = (member.m_dependentMutator != kMaxU32)
 													 ? binary.m_mutators[member.m_dependentMutator].m_name.getBegin()
 													 : "None";
 				lines.pushBackSprintf(
@@ -182,9 +182,9 @@ void dumpShaderProgramBinary(const ShaderProgramBinary& binary, StringAuto& huma
 		compiler.set_common_options(options);
 
 		std::string glsl = compiler.compile();
-		StringListAuto sourceLines(alloc);
+		StringListRaii sourceLines(&pool);
 		sourceLines.splitString(glsl.c_str(), '\n');
-		StringAuto newGlsl(alloc);
+		StringRaii newGlsl(&pool);
 		sourceLines.join("\n" ANKI_TAB ANKI_TAB, newGlsl);
 
 		lines.pushBackSprintf(ANKI_TAB "#bin%05u \n" ANKI_TAB ANKI_TAB "%s\n", count++, newGlsl.cstr());
@@ -272,7 +272,7 @@ void dumpShaderProgramBinary(const ShaderProgramBinary& binary, StringAuto& huma
 		lines.pushBack(ANKI_TAB ANKI_TAB "Binaries ");
 		for(ShaderType shaderType : EnumIterable<ShaderType>())
 		{
-			if(variant.m_codeBlockIndices[shaderType] < MAX_U32)
+			if(variant.m_codeBlockIndices[shaderType] < kMaxU32)
 			{
 				lines.pushBackSprintf("#bin%05u", variant.m_codeBlockIndices[shaderType]);
 			}
@@ -281,7 +281,7 @@ void dumpShaderProgramBinary(const ShaderProgramBinary& binary, StringAuto& huma
 				lines.pushBack("-");
 			}
 
-			if(shaderType != ShaderType::LAST)
+			if(shaderType != ShaderType::kLast)
 			{
 				lines.pushBack(",");
 			}

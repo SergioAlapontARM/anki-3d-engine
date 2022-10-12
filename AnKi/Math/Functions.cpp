@@ -28,16 +28,16 @@ static void sinCosInternal(const Scalar a_, Scalar& sina, Scalar& cosa)
 		a = -a;
 		negative = true;
 	}
-	const Scalar TWO_OVER_PI = Scalar(1.0 / (PI / 2.0));
-	Scalar floatA = TWO_OVER_PI * a;
+	constexpr Scalar k2OverPi = Scalar(1.0 / (kPi / 2.0));
+	Scalar floatA = k2OverPi * a;
 	I intA = (int)floatA;
 
-	const Scalar RATIONAL_HALF_PI = 201 / 128.0;
-	const Scalar REMAINDER_HALF_PI = Scalar(4.8382679e-4);
+	constexpr Scalar kRationalHalfPi = 201 / 128.0;
+	constexpr Scalar kRemainderHalfPi = Scalar(4.8382679e-4);
 
-	floatA = (a - RATIONAL_HALF_PI * Scalar(intA)) - REMAINDER_HALF_PI * Scalar(intA);
+	floatA = (a - kRationalHalfPi * Scalar(intA)) - kRemainderHalfPi * Scalar(intA);
 
-	Scalar floatAMinusHalfPi = (floatA - RATIONAL_HALF_PI) - REMAINDER_HALF_PI;
+	Scalar floatAMinusHalfPi = (floatA - kRationalHalfPi) - kRemainderHalfPi;
 
 	switch(intA & 3)
 	{

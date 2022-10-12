@@ -20,19 +20,19 @@ class StdinListener
 {
 public:
 	StdinListener()
-		: m_thrd("anki_stdin")
+		: m_thrd("Stdin")
 	{
 	}
 
 	~StdinListener();
 
-	Error create(HeapAllocator<String>& alloc);
+	Error create(HeapMemoryPool* pool);
 
 	/// Get line from the queue or return an empty string
 	String getLine();
 
 private:
-	HeapAllocator<U8> m_alloc;
+	HeapMemoryPool* m_pool = nullptr;
 	List<String> m_q;
 	Mutex m_mtx; ///< Protect the queue
 	Thread m_thrd; ///< The thread

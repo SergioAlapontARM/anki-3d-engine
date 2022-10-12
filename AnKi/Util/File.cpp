@@ -48,20 +48,20 @@ File::~File()
 
 Error File::open(const CString& filename, FileOpenFlag flags)
 {
-	ANKI_ASSERT(m_file == nullptr && m_flags == FileOpenFlag::NONE);
+	ANKI_ASSERT(m_file == nullptr && m_flags == FileOpenFlag::kNone);
 
 	// Only these flags are accepted
 	ANKI_ASSERT((flags
-				 & (FileOpenFlag::READ | FileOpenFlag::WRITE | FileOpenFlag::APPEND | FileOpenFlag::BINARY
-					| FileOpenFlag::ENDIAN_LITTLE | FileOpenFlag::ENDIAN_BIG | FileOpenFlag::SPECIAL))
-				!= FileOpenFlag::NONE);
+				 & (FileOpenFlag::kRead | FileOpenFlag::kWrite | FileOpenFlag::kAppend | FileOpenFlag::kBinary
+					| FileOpenFlag::kLittleEndian | FileOpenFlag::kBigEndian | FileOpenFlag::kSpecial))
+				!= FileOpenFlag::kNone);
 
 	// Cannot be both
-	ANKI_ASSERT((flags & FileOpenFlag::READ) != (flags & FileOpenFlag::WRITE));
+	ANKI_ASSERT((flags & FileOpenFlag::kRead) != (flags & FileOpenFlag::kWrite));
 
 	// Open it
 #if ANKI_OS_ANDROID
-	if(!!(flags & FileOpenFlag::SPECIAL))
+	if(!!(flags & FileOpenFlag::kSpecial))
 	{
 		ANKI_CHECK(openAndroidFile(filename, flags));
 	}
@@ -72,7 +72,7 @@ Error File::open(const CString& filename, FileOpenFlag flags)
 	}
 
 	// Set endianess
-	if((flags & (FileOpenFlag::ENDIAN_BIG | FileOpenFlag::ENDIAN_LITTLE)) == FileOpenFlag::NONE)
+	if((flags & (FileOpenFlag::kBigEndian | FileOpenFlag::kLittleEndian)) == FileOpenFlag::kNone)
 	{
 		// If the open() DIDN'T provided us the file endianess Set the machine's endianness
 		m_flags = m_flags | getMachineEndianness();
@@ -80,26 +80,26 @@ Error File::open(const CString& filename, FileOpenFlag flags)
 	else
 	{
 		// Else just make sure that only one of the flags is set
-		ANKI_ASSERT((flags & FileOpenFlag::ENDIAN_BIG) != (flags & FileOpenFlag::ENDIAN_LITTLE));
+		ANKI_ASSERT((flags & FileOpenFlag::kBigEndian) != (flags & FileOpenFlag::kLittleEndian));
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error File::openCFile(const CString& filename, FileOpenFlag flags)
 {
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 	const char* openMode;
 
-	if((flags & FileOpenFlag::READ) != FileOpenFlag::NONE)
+	if((flags & FileOpenFlag::kRead) != FileOpenFlag::kNone)
 	{
 		openMode = "rb";
 	}
-	else if((flags & FileOpenFlag::APPEND) == FileOpenFlag::APPEND)
+	else if((flags & FileOpenFlag::kAppend) == FileOpenFlag::kAppend)
 	{
 		openMode = "a+b";
 	}
-	else if((flags & FileOpenFlag::WRITE) != FileOpenFlag::NONE)
+	else if((flags & FileOpenFlag::kWrite) != FileOpenFlag::kNone)
 	{
 		openMode = "wb";
 	}
@@ -114,7 +114,7 @@ Error File::openCFile(const CString& filename, FileOpenFlag flags)
 	if(m_file == nullptr)
 	{
 		ANKI_UTIL_LOGE("Failed to open file \"%s\", open mode \"%s\"", &filename[0], openMode);
-		err = Error::FILE_ACCESS;
+		err = Error::kFileAccess;
 	}
 	else
 	{
@@ -122,7 +122,7 @@ Error File::openCFile(const CString& filename, FileOpenFlag flags)
 	}
 
 	// Get file size
-	if(!!(flags & FileOpenFlag::READ) && !err)
+	if(!!(flags & FileOpenFlag::kRead) && !err)
 	{
 #if ANKI_POSIX
 		const int fd = fileno(ANKI_CFILE);
@@ -131,7 +131,7 @@ Error File::openCFile(const CString& filename, FileOpenFlag flags)
 		if((fstat(fd, &stbuf) != 0) || (!S_ISREG(stbuf.st_mode)))
 		{
 			ANKI_UTIL_LOGE("fstat() failed");
-			err = Error::FUNCTION_FAILED;
+			err = Error::kFunctionFailed;
 		}
 		else
 		{
@@ -143,7 +143,7 @@ Error File::openCFile(const CString& filename, FileOpenFlag flags)
 		if(size < 1)
 		{
 			ANKI_UTIL_LOGE("ftell() failed");
-			err = Error::FUNCTION_FAILED;
+			err = Error::kFunctionFailed;
 		}
 		else
 		{
@@ -159,18 +159,18 @@ Error File::openCFile(const CString& filename, FileOpenFlag flags)
 #if ANKI_OS_ANDROID
 Error File::openAndroidFile(const CString& filename, FileOpenFlag flags)
 {
-	ANKI_ASSERT(!!(flags & FileOpenFlag::SPECIAL));
+	ANKI_ASSERT(!!(flags & FileOpenFlag::kSpecial));
 
-	if(!!(flags & FileOpenFlag::WRITE))
+	if(!!(flags & FileOpenFlag::kWrite))
 	{
 		ANKI_UTIL_LOGE("Cannot write inside archives");
-		return Error::FILE_ACCESS;
+		return Error::kFileAccess;
 	}
 
-	if(!(flags & FileOpenFlag::READ))
+	if(!(flags & FileOpenFlag::kRead))
 	{
-		ANKI_UTIL_LOGE("Missing FileOpenFlag::READ flag");
-		return Error::FILE_ACCESS;
+		ANKI_UTIL_LOGE("Missing FileOpenFlag::kRead flag");
+		return Error::kFileAccess;
 	}
 
 	// Open file
@@ -181,7 +181,7 @@ Error File::openAndroidFile(const CString& filename, FileOpenFlag flags)
 	if(m_file == nullptr)
 	{
 		ANKI_UTIL_LOGE("AAssetManager_open() failed");
-		return Error::FILE_ACCESS;
+		return Error::kFileAccess;
 	}
 
 	m_flags = flags;
@@ -189,7 +189,7 @@ Error File::openAndroidFile(const CString& filename, FileOpenFlag flags)
 	// Get size
 	m_size = AAsset_getLength(ANKI_AFILE);
 
-	return Error::NONE;
+	return Error::kNone;
 }
 #endif
 
@@ -198,7 +198,7 @@ void File::close()
 	if(m_file)
 	{
 #if ANKI_OS_ANDROID
-		if(!!(m_flags & FileOpenFlag::SPECIAL))
+		if(!!(m_flags & FileOpenFlag::kSpecial))
 		{
 			AAsset_close(ANKI_AFILE);
 		}
@@ -215,12 +215,12 @@ void File::close()
 Error File::flush()
 {
 	ANKI_ASSERT(m_file);
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 
-	if((m_flags & FileOpenFlag::WRITE) != FileOpenFlag::NONE)
+	if((m_flags & FileOpenFlag::kWrite) != FileOpenFlag::kNone)
 	{
 #if ANKI_OS_ANDROID
-		if(!!(m_flags & FileOpenFlag::SPECIAL))
+		if(!!(m_flags & FileOpenFlag::kSpecial))
 		{
 			ANKI_ASSERT(0 && "Cannot have write these file types");
 		}
@@ -231,7 +231,7 @@ Error File::flush()
 			if(ierr)
 			{
 				ANKI_UTIL_LOGE("fflush() failed");
-				err = Error::FUNCTION_FAILED;
+				err = Error::kFunctionFailed;
 			}
 		}
 	}
@@ -244,12 +244,12 @@ Error File::read(void* buff, PtrSize size)
 	ANKI_ASSERT(buff);
 	ANKI_ASSERT(size > 0);
 	ANKI_ASSERT(m_file);
-	ANKI_ASSERT((m_flags & FileOpenFlag::READ) != FileOpenFlag::NONE);
+	ANKI_ASSERT((m_flags & FileOpenFlag::kRead) != FileOpenFlag::kNone);
 
 	I64 readSize = 0;
 
 #if ANKI_OS_ANDROID
-	if(!!(m_flags & FileOpenFlag::SPECIAL))
+	if(!!(m_flags & FileOpenFlag::kSpecial))
 	{
 		readSize = AAsset_read(ANKI_AFILE, buff, size);
 	}
@@ -259,11 +259,11 @@ Error File::read(void* buff, PtrSize size)
 		readSize = fread(buff, 1, size, ANKI_CFILE);
 	}
 
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 	if(static_cast<I64>(size) != readSize)
 	{
 		ANKI_UTIL_LOGE("File read failed");
-		err = Error::FILE_ACCESS;
+		err = Error::kFileAccess;
 	}
 
 	return err;
@@ -272,10 +272,10 @@ Error File::read(void* buff, PtrSize size)
 Error File::readU32(U32& out)
 {
 	ANKI_ASSERT(m_file);
-	ANKI_ASSERT(m_flags != FileOpenFlag::NONE);
-	ANKI_ASSERT((m_flags & FileOpenFlag::READ) != FileOpenFlag::NONE);
-	ANKI_ASSERT((m_flags & FileOpenFlag::BINARY) != FileOpenFlag::NONE && "Should be binary file");
-	ANKI_ASSERT((m_flags & FileOpenFlag::ENDIAN_BIG) != (m_flags & FileOpenFlag::ENDIAN_LITTLE)
+	ANKI_ASSERT(m_flags != FileOpenFlag::kNone);
+	ANKI_ASSERT((m_flags & FileOpenFlag::kRead) != FileOpenFlag::kNone);
+	ANKI_ASSERT((m_flags & FileOpenFlag::kBinary) != FileOpenFlag::kNone && "Should be binary file");
+	ANKI_ASSERT((m_flags & FileOpenFlag::kBigEndian) != (m_flags & FileOpenFlag::kLittleEndian)
 				&& "One of those 2 should be active");
 
 	Error err = read(&out, sizeof(out));
@@ -283,15 +283,15 @@ Error File::readU32(U32& out)
 	{
 		// Copy it
 		FileOpenFlag machineEndianness = getMachineEndianness();
-		FileOpenFlag fileEndianness = ((m_flags & FileOpenFlag::ENDIAN_BIG) != FileOpenFlag::NONE)
-										  ? FileOpenFlag::ENDIAN_BIG
-										  : FileOpenFlag::ENDIAN_LITTLE;
+		FileOpenFlag fileEndianness = ((m_flags & FileOpenFlag::kBigEndian) != FileOpenFlag::kNone)
+										  ? FileOpenFlag::kBigEndian
+										  : FileOpenFlag::kLittleEndian;
 
 		if(machineEndianness == fileEndianness)
 		{
 			// Same endianness between the file and the machine. Do nothing
 		}
-		else if(machineEndianness == FileOpenFlag::ENDIAN_BIG && fileEndianness == FileOpenFlag::ENDIAN_LITTLE)
+		else if(machineEndianness == FileOpenFlag::kBigEndian && fileEndianness == FileOpenFlag::kLittleEndian)
 		{
 			U8* c = reinterpret_cast<U8*>(&out);
 			out = (c[0] | (c[1] << 8) | (c[2] << 16) | (c[3] << 24));
@@ -308,7 +308,7 @@ Error File::readU32(U32& out)
 
 Error File::readF32(F32& out)
 {
-	U32 integer = MAX_U32;
+	U32 integer = kMaxU32;
 	Error err = readU32(integer);
 	if(!err)
 	{
@@ -323,15 +323,15 @@ Error File::write(const void* buff, PtrSize size)
 	ANKI_ASSERT(buff);
 	ANKI_ASSERT(size > 0);
 	ANKI_ASSERT(m_file);
-	ANKI_ASSERT((m_flags & FileOpenFlag::WRITE) != FileOpenFlag::NONE);
+	ANKI_ASSERT((m_flags & FileOpenFlag::kWrite) != FileOpenFlag::kNone);
 
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 
 #if ANKI_OS_ANDROID
-	if(!!(m_flags & FileOpenFlag::SPECIAL))
+	if(!!(m_flags & FileOpenFlag::kSpecial))
 	{
 		ANKI_UTIL_LOGE("Writting to special files is not supported");
-		err = Error::FILE_ACCESS;
+		err = Error::kFileAccess;
 	}
 	else
 #endif
@@ -341,7 +341,7 @@ Error File::write(const void* buff, PtrSize size)
 		if(writeSize != size)
 		{
 			ANKI_UTIL_LOGE("fwrite() failed");
-			err = Error::FILE_ACCESS;
+			err = Error::kFileAccess;
 		}
 	}
 
@@ -351,19 +351,19 @@ Error File::write(const void* buff, PtrSize size)
 Error File::writeTextf(const Char* format, ...)
 {
 	ANKI_ASSERT(m_file);
-	ANKI_ASSERT(m_flags != FileOpenFlag::NONE);
-	ANKI_ASSERT((m_flags & FileOpenFlag::WRITE) != FileOpenFlag::NONE);
-	ANKI_ASSERT((m_flags & FileOpenFlag::BINARY) == FileOpenFlag::NONE);
+	ANKI_ASSERT(m_flags != FileOpenFlag::kNone);
+	ANKI_ASSERT((m_flags & FileOpenFlag::kWrite) != FileOpenFlag::kNone);
+	ANKI_ASSERT((m_flags & FileOpenFlag::kBinary) == FileOpenFlag::kNone);
 
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 	va_list args;
 	va_start(args, format);
 
 #if ANKI_OS_ANDROID
-	if(!!(m_flags & FileOpenFlag::SPECIAL))
+	if(!!(m_flags & FileOpenFlag::kSpecial))
 	{
 		ANKI_UTIL_LOGE("Writting to special files is not supported");
-		err = Error::FILE_ACCESS;
+		err = Error::kFileAccess;
 	}
 	else
 #endif
@@ -378,37 +378,42 @@ Error File::writeTextf(const Char* format, ...)
 Error File::writeText(CString text)
 {
 	ANKI_ASSERT(m_file);
-	ANKI_ASSERT(m_flags != FileOpenFlag::NONE);
-	ANKI_ASSERT((m_flags & FileOpenFlag::WRITE) != FileOpenFlag::NONE);
-	ANKI_ASSERT((m_flags & FileOpenFlag::BINARY) == FileOpenFlag::NONE);
+	ANKI_ASSERT(m_flags != FileOpenFlag::kNone);
+	ANKI_ASSERT((m_flags & FileOpenFlag::kWrite) != FileOpenFlag::kNone);
+	ANKI_ASSERT((m_flags & FileOpenFlag::kBinary) == FileOpenFlag::kNone);
 
-	const PtrSize writeSize = text.getLength() + 1;
+	const PtrSize writeSize = text.getLength();
+	if(ANKI_UNLIKELY(writeSize == 0))
+	{
+		return Error::kNone;
+	}
+
 	const PtrSize writenSize = fwrite(text.cstr(), 1, writeSize, ANKI_CFILE);
 
 	if(writeSize != writenSize)
 	{
 		ANKI_UTIL_LOGE("fwrite() failed");
-		return Error::FILE_ACCESS;
+		return Error::kFileAccess;
 	}
 	else
 	{
-		return Error::NONE;
+		return Error::kNone;
 	}
 }
 
 Error File::seek(PtrSize offset, FileSeekOrigin origin)
 {
 	ANKI_ASSERT(m_file);
-	ANKI_ASSERT(m_flags != FileOpenFlag::NONE);
-	Error err = Error::NONE;
+	ANKI_ASSERT(m_flags != FileOpenFlag::kNone);
+	Error err = Error::kNone;
 
 #if ANKI_OS_ANDROID
-	if(!!(m_flags & FileOpenFlag::SPECIAL))
+	if(!!(m_flags & FileOpenFlag::kSpecial))
 	{
 		if(AAsset_seek(ANKI_AFILE, offset, I32(origin)) == off_t(-1))
 		{
 			ANKI_UTIL_LOGE("AAsset_seek() failed");
-			err = Error::FUNCTION_FAILED;
+			err = Error::kFunctionFailed;
 		}
 	}
 	else
@@ -417,7 +422,7 @@ Error File::seek(PtrSize offset, FileSeekOrigin origin)
 		if(fseek(ANKI_CFILE, (long int)(offset), I32(origin)) != 0)
 		{
 			ANKI_UTIL_LOGE("fseek() failed");
-			err = Error::FUNCTION_FAILED;
+			err = Error::kFunctionFailed;
 		}
 	}
 
@@ -427,10 +432,10 @@ Error File::seek(PtrSize offset, FileSeekOrigin origin)
 PtrSize File::tell()
 {
 	ANKI_ASSERT(m_file);
-	ANKI_ASSERT(m_flags != FileOpenFlag::NONE);
+	ANKI_ASSERT(m_flags != FileOpenFlag::kNone);
 
 #if ANKI_OS_ANDROID
-	if(!!(m_flags & FileOpenFlag::SPECIAL))
+	if(!!(m_flags & FileOpenFlag::kSpecial))
 	{
 		ANKI_ASSERT(0);
 		return 0;
@@ -447,35 +452,35 @@ FileOpenFlag File::getMachineEndianness()
 	I32 num = 1;
 	if(*(char*)&num == 1)
 	{
-		return FileOpenFlag::ENDIAN_LITTLE;
+		return FileOpenFlag::kLittleEndian;
 	}
 	else
 	{
-		return FileOpenFlag::ENDIAN_BIG;
+		return FileOpenFlag::kBigEndian;
 	}
 }
 
-Error File::readAllText(GenericMemoryPoolAllocator<U8> alloc, String& out)
+Error File::readAllText(BaseMemoryPool& pool, String& out)
 {
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 	PtrSize size = getSize();
 
 	if(size != 0)
 	{
-		out.create(alloc, '?', size);
+		out.create(pool, '?', size);
 		err = read(&out[0], size);
 	}
 	else
 	{
-		err = Error::FUNCTION_FAILED;
+		err = Error::kFunctionFailed;
 	}
 
 	return err;
 }
 
-Error File::readAllText(StringAuto& out)
+Error File::readAllText(StringRaii& out)
 {
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 	PtrSize size = getSize();
 
 	if(size != 0)
@@ -485,7 +490,7 @@ Error File::readAllText(StringAuto& out)
 	}
 	else
 	{
-		err = Error::FUNCTION_FAILED;
+		err = Error::kFunctionFailed;
 	}
 
 	return err;

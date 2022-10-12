@@ -35,37 +35,38 @@ Error MotionVectors::initInternal()
 													 : "ShaderBinaries/MotionVectorsRaster.ankiprogbin",
 												 m_prog));
 	ShaderProgramResourceVariantInitInfo variantInitInfo(m_prog);
-	variantInitInfo.addConstant("FB_SIZE", UVec2(m_r->getInternalResolution().x(), m_r->getInternalResolution().y()));
+	variantInitInfo.addConstant("kFramebufferSize",
+								UVec2(m_r->getInternalResolution().x(), m_r->getInternalResolution().y()));
 	const ShaderProgramResourceVariant* variant;
 	m_prog->getOrCreateVariant(variantInitInfo, variant);
 	m_grProg = variant->getProgram();
 
 	// RTs
 	m_motionVectorsRtDescr = m_r->create2DRenderTargetDescription(
-		m_r->getInternalResolution().x(), m_r->getInternalResolution().y(), Format::R16G16_SFLOAT, "MotionVectors");
+		m_r->getInternalResolution().x(), m_r->getInternalResolution().y(), Format::kR16G16_Sfloat, "MotionVectors");
 	m_motionVectorsRtDescr.bake();
 
-	TextureUsageBit historyLengthUsage = TextureUsageBit::ALL_SAMPLED;
+	TextureUsageBit historyLengthUsage = TextureUsageBit::kAllSampled;
 	if(getConfig().getRPreferCompute())
 	{
-		historyLengthUsage |= TextureUsageBit::IMAGE_COMPUTE_WRITE;
+		historyLengthUsage |= TextureUsageBit::kImageComputeWrite;
 	}
 	else
 	{
-		historyLengthUsage |= TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+		historyLengthUsage |= TextureUsageBit::kFramebufferWrite;
 	}
 
 	TextureInitInfo historyLengthTexInit =
 		m_r->create2DRenderTargetInitInfo(m_r->getInternalResolution().x(), m_r->getInternalResolution().y(),
-										  Format::R8_UNORM, historyLengthUsage, "MotionVectorsHistoryLen#1");
-	m_historyLengthTextures[0] = m_r->createAndClearRenderTarget(historyLengthTexInit, TextureUsageBit::ALL_SAMPLED);
+										  Format::kR8_Unorm, historyLengthUsage, "MotionVectorsHistoryLen#1");
+	m_historyLengthTextures[0] = m_r->createAndClearRenderTarget(historyLengthTexInit, TextureUsageBit::kAllSampled);
 	historyLengthTexInit.setName("MotionVectorsHistoryLen#2");
-	m_historyLengthTextures[1] = m_r->createAndClearRenderTarget(historyLengthTexInit, TextureUsageBit::ALL_SAMPLED);
+	m_historyLengthTextures[1] = m_r->createAndClearRenderTarget(historyLengthTexInit, TextureUsageBit::kAllSampled);
 
 	m_fbDescr.m_colorAttachmentCount = 2;
 	m_fbDescr.bake();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void MotionVectors::populateRenderGraph(RenderingContext& ctx)
@@ -86,9 +87,9 @@ void MotionVectors::populateRenderGraph(RenderingContext& ctx)
 	else
 	{
 		m_runCtx.m_historyLengthWriteRtHandle =
-			rgraph.importRenderTarget(m_historyLengthTextures[writeHistoryLenTexIdx], TextureUsageBit::ALL_SAMPLED);
+			rgraph.importRenderTarget(m_historyLengthTextures[writeHistoryLenTexIdx], TextureUsageBit::kAllSampled);
 		m_runCtx.m_historyLengthReadRtHandle =
-			rgraph.importRenderTarget(m_historyLengthTextures[readHistoryLenTexIdx], TextureUsageBit::ALL_SAMPLED);
+			rgraph.importRenderTarget(m_historyLengthTextures[readHistoryLenTexIdx], TextureUsageBit::kAllSampled);
 
 		m_historyLengthTexturesImportedOnce = true;
 	}
@@ -100,8 +101,8 @@ void MotionVectors::populateRenderGraph(RenderingContext& ctx)
 	{
 		ComputeRenderPassDescription& pass = rgraph.newComputeRenderPass("MotionVectors");
 
-		readUsage = TextureUsageBit::SAMPLED_COMPUTE;
-		writeUsage = TextureUsageBit::IMAGE_COMPUTE_WRITE;
+		readUsage = TextureUsageBit::kSampledCompute;
+		writeUsage = TextureUsageBit::kImageComputeWrite;
 		ppass = &pass;
 	}
 	else
@@ -109,8 +110,8 @@ void MotionVectors::populateRenderGraph(RenderingContext& ctx)
 		GraphicsRenderPassDescription& pass = rgraph.newGraphicsRenderPass("MotionVectors");
 		pass.setFramebufferInfo(m_fbDescr, {m_runCtx.m_motionVectorsRtHandle, m_runCtx.m_historyLengthWriteRtHandle});
 
-		readUsage = TextureUsageBit::SAMPLED_FRAGMENT;
-		writeUsage = TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+		readUsage = TextureUsageBit::kSampledFragment;
+		writeUsage = TextureUsageBit::kFramebufferWrite;
 		ppass = &pass;
 	}
 
@@ -118,12 +119,12 @@ void MotionVectors::populateRenderGraph(RenderingContext& ctx)
 		run(ctx, rgraphCtx);
 	});
 
-	ppass->newDependency(RenderPassDependency(m_runCtx.m_motionVectorsRtHandle, writeUsage));
-	ppass->newDependency(RenderPassDependency(m_runCtx.m_historyLengthWriteRtHandle, writeUsage));
-	ppass->newDependency(RenderPassDependency(m_runCtx.m_historyLengthReadRtHandle, readUsage));
-	ppass->newDependency(RenderPassDependency(m_r->getGBuffer().getColorRt(3), readUsage));
-	ppass->newDependency(RenderPassDependency(m_r->getGBuffer().getDepthRt(), readUsage));
-	ppass->newDependency(RenderPassDependency(m_r->getGBuffer().getPreviousFrameDepthRt(), readUsage));
+	ppass->newTextureDependency(m_runCtx.m_motionVectorsRtHandle, writeUsage);
+	ppass->newTextureDependency(m_runCtx.m_historyLengthWriteRtHandle, writeUsage);
+	ppass->newTextureDependency(m_runCtx.m_historyLengthReadRtHandle, readUsage);
+	ppass->newTextureDependency(m_r->getGBuffer().getColorRt(3), readUsage);
+	ppass->newTextureDependency(m_r->getGBuffer().getDepthRt(), readUsage);
+	ppass->newTextureDependency(m_r->getGBuffer().getPreviousFrameDepthRt(), readUsage);
 }
 
 void MotionVectors::run(const RenderingContext& ctx, RenderPassWorkContext& rgraphCtx)
@@ -133,9 +134,9 @@ void MotionVectors::run(const RenderingContext& ctx, RenderPassWorkContext& rgra
 	cmdb->bindShaderProgram(m_grProg);
 
 	cmdb->bindSampler(0, 0, m_r->getSamplers().m_trilinearClamp);
-	rgraphCtx.bindTexture(0, 1, m_r->getGBuffer().getDepthRt(), TextureSubresourceInfo(DepthStencilAspectBit::DEPTH));
+	rgraphCtx.bindTexture(0, 1, m_r->getGBuffer().getDepthRt(), TextureSubresourceInfo(DepthStencilAspectBit::kDepth));
 	rgraphCtx.bindTexture(0, 2, m_r->getGBuffer().getPreviousFrameDepthRt(),
-						  TextureSubresourceInfo(DepthStencilAspectBit::DEPTH));
+						  TextureSubresourceInfo(DepthStencilAspectBit::kDepth));
 	rgraphCtx.bindColorTexture(0, 3, m_r->getGBuffer().getColorRt(3));
 	rgraphCtx.bindColorTexture(0, 4, m_runCtx.m_historyLengthReadRtHandle);
 
@@ -166,7 +167,7 @@ void MotionVectors::run(const RenderingContext& ctx, RenderPassWorkContext& rgra
 	{
 		cmdb->setViewport(0, 0, m_r->getInternalResolution().x(), m_r->getInternalResolution().y());
 
-		cmdb->drawArrays(PrimitiveTopology::TRIANGLES, 3);
+		cmdb->drawArrays(PrimitiveTopology::kTriangles, 3);
 	}
 }
 

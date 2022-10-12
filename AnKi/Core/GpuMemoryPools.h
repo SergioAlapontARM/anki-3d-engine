@@ -19,22 +19,22 @@ class ConfigSet;
 /// @{
 
 /// Manages vertex and index memory for the whole application.
-class VertexGpuMemoryPool
+class UnifiedGeometryMemoryPool
 {
 public:
-	VertexGpuMemoryPool() = default;
+	UnifiedGeometryMemoryPool() = default;
 
-	VertexGpuMemoryPool(const VertexGpuMemoryPool&) = delete; // Non-copyable
+	UnifiedGeometryMemoryPool(const UnifiedGeometryMemoryPool&) = delete; // Non-copyable
 
-	~VertexGpuMemoryPool();
+	~UnifiedGeometryMemoryPool();
 
-	VertexGpuMemoryPool& operator=(const VertexGpuMemoryPool&) = delete; // Non-copyable
+	UnifiedGeometryMemoryPool& operator=(const UnifiedGeometryMemoryPool&) = delete; // Non-copyable
 
-	Error init(GenericMemoryPoolAllocator<U8> alloc, GrManager* gr, const ConfigSet& cfg);
+	Error init(HeapMemoryPool* pool, GrManager* gr, const ConfigSet& cfg);
 
-	Error allocate(PtrSize size, PtrSize& offset);
+	Error allocate(PtrSize size, U32 alignment, PtrSize& offset);
 
-	void free(PtrSize size, PtrSize offset);
+	void free(PtrSize size, U32 alignment, PtrSize offset);
 
 	BufferPtr getVertexBuffer() const
 	{
@@ -54,11 +54,13 @@ private:
 
 enum class StagingGpuMemoryType : U8
 {
-	UNIFORM,
-	STORAGE,
-	VERTEX,
-	TEXTURE,
-	COUNT
+	kUniform,
+	kStorage,
+	kVertex,
+	kTexture,
+
+	kCount,
+	kFirst = 0,
 };
 ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(StagingGpuMemoryType)
 
@@ -69,7 +71,7 @@ public:
 	BufferPtr m_buffer;
 	PtrSize m_offset = 0;
 	PtrSize m_range = 0;
-	StagingGpuMemoryType m_type = StagingGpuMemoryType::COUNT;
+	StagingGpuMemoryType m_type = StagingGpuMemoryType::kCount;
 
 	StagingGpuMemoryToken() = default;
 
@@ -82,12 +84,12 @@ public:
 
 	void markUnused()
 	{
-		m_offset = m_range = MAX_U32;
+		m_offset = m_range = kMaxU32;
 	}
 
 	Bool isUnused() const
 	{
-		return m_offset == MAX_U32 && m_range == MAX_U32;
+		return m_offset == kMaxU32 && m_range == kMaxU32;
 	}
 };
 
@@ -108,11 +110,11 @@ public:
 	void endFrame();
 
 	/// Allocate staging memory for various operations. The memory will be reclaimed at the begining of the
-	/// N-(MAX_FRAMES_IN_FLIGHT-1) frame.
+	/// N-(kMaxFramesInFlight-1) frame.
 	void* allocateFrame(PtrSize size, StagingGpuMemoryType usage, StagingGpuMemoryToken& token);
 
 	/// Allocate staging memory for various operations. The memory will be reclaimed at the begining of the
-	/// N-(MAX_FRAMES_IN_FLIGHT-1) frame.
+	/// N-(kMaxFramesInFlight-1) frame.
 	void* tryAllocateFrame(PtrSize size, StagingGpuMemoryType usage, StagingGpuMemoryToken& token);
 
 private:
@@ -126,7 +128,7 @@ private:
 	};
 
 	GrManager* m_gr = nullptr;
-	Array<PerFrameBuffer, U(StagingGpuMemoryType::COUNT)> m_perFrameBuffers;
+	Array<PerFrameBuffer, U(StagingGpuMemoryType::kCount)> m_perFrameBuffers;
 
 	void initBuffer(StagingGpuMemoryType type, U32 alignment, PtrSize maxAllocSize, BufferUsageBit usage,
 					GrManager& gr);

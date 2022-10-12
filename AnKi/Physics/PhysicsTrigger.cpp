@@ -11,7 +11,7 @@
 namespace anki {
 
 PhysicsTrigger::PhysicsTrigger(PhysicsWorld* world, PhysicsCollisionShapePtr shape)
-	: PhysicsFilteredObject(CLASS_TYPE, world)
+	: PhysicsFilteredObject(kClassType, world)
 {
 	m_shape = shape;
 
@@ -24,8 +24,8 @@ PhysicsTrigger::PhysicsTrigger(PhysicsWorld* world, PhysicsCollisionShapePtr sha
 
 	m_ghostShape->setUserPointer(static_cast<PhysicsObject*>(this));
 
-	setMaterialGroup(PhysicsMaterialBit::TRIGGER);
-	setMaterialMask(PhysicsMaterialBit::ALL ^ PhysicsMaterialBit::STATIC_GEOMETRY);
+	setMaterialGroup(PhysicsMaterialBit::kTrigger);
+	setMaterialMask(PhysicsMaterialBit::kAll ^ PhysicsMaterialBit::kStaticGeometry);
 }
 
 PhysicsTrigger::~PhysicsTrigger()
@@ -38,11 +38,11 @@ PhysicsTrigger::~PhysicsTrigger()
 
 		if(pair->shouldDelete())
 		{
-			getAllocator().deleteInstance(pair);
+			deleteInstance(getMemoryPool(), pair);
 		}
 	}
 
-	m_pairs.destroy(getAllocator());
+	m_pairs.destroy(getMemoryPool());
 
 	m_ghostShape.destroy();
 }
@@ -63,12 +63,12 @@ void PhysicsTrigger::processContacts()
 
 	if(m_contactCallback == nullptr)
 	{
-		m_pairs.destroy(getAllocator());
+		m_pairs.destroy(getMemoryPool());
 		return;
 	}
 
 	// Gather the new pairs
-	DynamicArrayAuto<PhysicsTriggerFilteredPair*> newPairs(getWorld().getTempAllocator());
+	DynamicArrayRaii<PhysicsTriggerFilteredPair*> newPairs(&getWorld().getTempMemoryPool());
 	newPairs.resizeStorage(m_ghostShape->getOverlappingPairs().size());
 	for(U32 i = 0; i < U32(m_ghostShape->getOverlappingPairs().size()); ++i)
 	{
@@ -107,7 +107,7 @@ void PhysicsTrigger::processContacts()
 		if(pair->m_filteredObject == nullptr)
 		{
 			// Filtered object died while inside the tigger, destroy the pair
-			getAllocator().deleteInstance(pair);
+			deleteInstance(getMemoryPool(), pair);
 		}
 		else if(pair->m_frame == m_processContactsFrame)
 		{
@@ -124,7 +124,7 @@ void PhysicsTrigger::processContacts()
 	}
 
 	// Store the new contacts
-	m_pairs.resize(getAllocator(), newPairs.getSize());
+	m_pairs.resize(getMemoryPool(), newPairs.getSize());
 	if(m_pairs.getSize())
 	{
 		memcpy(&m_pairs[0], &newPairs[0], m_pairs.getSizeInBytes());

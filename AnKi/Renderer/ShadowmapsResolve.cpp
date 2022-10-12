@@ -24,7 +24,7 @@ Error ShadowmapsResolve::init()
 		ANKI_R_LOGE("Failed to initialize shadow resolve pass");
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error ShadowmapsResolve::initInternal()
@@ -35,7 +35,7 @@ Error ShadowmapsResolve::initInternal()
 
 	ANKI_R_LOGV("Initializing shadowmaps resolve. Resolution %ux%u", width, height);
 
-	m_rtDescr = m_r->create2DRenderTargetDescription(width, height, Format::R8G8B8A8_UNORM, "SM resolve");
+	m_rtDescr = m_r->create2DRenderTargetDescription(width, height, Format::kR8G8B8A8_Unorm, "SM resolve");
 	m_rtDescr.bake();
 
 	// Create FB descr
@@ -50,16 +50,16 @@ Error ShadowmapsResolve::initInternal()
 	ShaderProgramResourceVariantInitInfo variantInitInfo(m_prog);
 	if(getConfig().getRPreferCompute())
 	{
-		variantInitInfo.addConstant("FB_SIZE", UVec2(width, height));
+		variantInitInfo.addConstant("kFramebufferSize", UVec2(width, height));
 	}
-	variantInitInfo.addConstant("TILE_COUNTS", m_r->getTileCounts());
-	variantInitInfo.addConstant("Z_SPLIT_COUNT", m_r->getZSplitCount());
-	variantInitInfo.addConstant("TILE_SIZE", m_r->getTileSize());
+	variantInitInfo.addConstant("kTileCount", m_r->getTileCounts());
+	variantInitInfo.addConstant("kZSplitCount", m_r->getZSplitCount());
+	variantInitInfo.addConstant("kTileSize", m_r->getTileSize());
 	const ShaderProgramResourceVariant* variant;
 	m_prog->getOrCreateVariant(variantInitInfo, variant);
 	m_grProg = variant->getProgram();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void ShadowmapsResolve::populateRenderGraph(RenderingContext& ctx)
@@ -75,15 +75,13 @@ void ShadowmapsResolve::populateRenderGraph(RenderingContext& ctx)
 			run(ctx, rgraphCtx);
 		});
 
-		rpass.newDependency(RenderPassDependency(m_runCtx.m_rt, TextureUsageBit::IMAGE_COMPUTE_WRITE));
-		rpass.newDependency(
-			RenderPassDependency((m_quarterRez) ? m_r->getDepthDownscale().getHiZRt() : m_r->getGBuffer().getDepthRt(),
-								 TextureUsageBit::SAMPLED_COMPUTE, TextureSurfaceInfo(0, 0, 0, 0)));
-		rpass.newDependency(
-			RenderPassDependency(m_r->getShadowMapping().getShadowmapRt(), TextureUsageBit::SAMPLED_COMPUTE));
+		rpass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kImageComputeWrite);
+		rpass.newTextureDependency((m_quarterRez) ? m_r->getDepthDownscale().getHiZRt()
+												  : m_r->getGBuffer().getDepthRt(),
+								   TextureUsageBit::kSampledCompute, TextureSurfaceInfo(0, 0, 0, 0));
+		rpass.newTextureDependency(m_r->getShadowMapping().getShadowmapRt(), TextureUsageBit::kSampledCompute);
 
-		rpass.newDependency(
-			RenderPassDependency(ctx.m_clusteredShading.m_clustersBufferHandle, BufferUsageBit::STORAGE_COMPUTE_READ));
+		rpass.newBufferDependency(ctx.m_clusteredShading.m_clustersBufferHandle, BufferUsageBit::kStorageComputeRead);
 	}
 	else
 	{
@@ -94,15 +92,13 @@ void ShadowmapsResolve::populateRenderGraph(RenderingContext& ctx)
 			run(ctx, rgraphCtx);
 		});
 
-		rpass.newDependency(RenderPassDependency(m_runCtx.m_rt, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE));
-		rpass.newDependency(
-			RenderPassDependency((m_quarterRez) ? m_r->getDepthDownscale().getHiZRt() : m_r->getGBuffer().getDepthRt(),
-								 TextureUsageBit::SAMPLED_FRAGMENT, TextureSurfaceInfo(0, 0, 0, 0)));
-		rpass.newDependency(
-			RenderPassDependency(m_r->getShadowMapping().getShadowmapRt(), TextureUsageBit::SAMPLED_FRAGMENT));
+		rpass.newTextureDependency(m_runCtx.m_rt, TextureUsageBit::kFramebufferWrite);
+		rpass.newTextureDependency((m_quarterRez) ? m_r->getDepthDownscale().getHiZRt()
+												  : m_r->getGBuffer().getDepthRt(),
+								   TextureUsageBit::kSampledFragment, TextureSurfaceInfo(0, 0, 0, 0));
+		rpass.newTextureDependency(m_r->getShadowMapping().getShadowmapRt(), TextureUsageBit::kSampledFragment);
 
-		rpass.newDependency(
-			RenderPassDependency(ctx.m_clusteredShading.m_clustersBufferHandle, BufferUsageBit::STORAGE_FRAGMENT_READ));
+		rpass.newBufferDependency(ctx.m_clusteredShading.m_clustersBufferHandle, BufferUsageBit::kStorageFragmentRead);
 	}
 }
 
@@ -128,7 +124,7 @@ void ShadowmapsResolve::run(const RenderingContext& ctx, RenderPassWorkContext& 
 	else
 	{
 		rgraphCtx.bindTexture(0, 6, m_r->getGBuffer().getDepthRt(),
-							  TextureSubresourceInfo(DepthStencilAspectBit::DEPTH));
+							  TextureSubresourceInfo(DepthStencilAspectBit::kDepth));
 	}
 
 	if(getConfig().getRPreferCompute())
@@ -139,7 +135,7 @@ void ShadowmapsResolve::run(const RenderingContext& ctx, RenderPassWorkContext& 
 	else
 	{
 		cmdb->setViewport(0, 0, m_rtDescr.m_width, m_rtDescr.m_height);
-		cmdb->drawArrays(PrimitiveTopology::TRIANGLES, 3);
+		cmdb->drawArrays(PrimitiveTopology::kTriangles, 3);
 	}
 }
 

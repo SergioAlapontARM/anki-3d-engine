@@ -11,38 +11,38 @@
 
 ANKI_TEST(Util, List)
 {
-	HeapAllocator<U8> alloc(allocAligned, nullptr);
+	HeapMemoryPool pool(allocAligned, nullptr);
 
 	// Simple
 	{
 		List<Foo> a;
-		Error err = Error::NONE;
+		Error err = Error::kNone;
 
-		a.emplaceBack(alloc, 10);
-		a.emplaceBack(alloc, 11);
+		a.emplaceBack(pool, 10);
+		a.emplaceBack(pool, 11);
 
 		U sum = 0;
 
 		err = a.iterateForward([&](const Foo& f) -> Error {
 			sum += f.x;
-			return Error::NONE;
+			return Error::kNone;
 		});
 
-		ANKI_TEST_EXPECT_EQ(err, Error::NONE);
+		ANKI_TEST_EXPECT_EQ(err, Error::kNone);
 		ANKI_TEST_EXPECT_EQ(sum, 21);
 
-		a.destroy(alloc);
+		a.destroy(pool);
 	}
 
 	// Sort
 	{
 		List<I> a;
-		Error err = Error::NONE;
+		Error err = Error::kNone;
 
-		a.emplaceBack(alloc, 10);
-		a.emplaceBack(alloc, 9);
-		a.emplaceBack(alloc, 11);
-		a.emplaceBack(alloc, 2);
+		a.emplaceBack(pool, 10);
+		a.emplaceBack(pool, 9);
+		a.emplaceBack(pool, 11);
+		a.emplaceBack(pool, 2);
 
 		a.sort();
 
@@ -52,15 +52,15 @@ ANKI_TEST(Util, List)
 		err = a.iterateForward([&](const I& i) -> Error {
 			if(arr[u++] == i)
 			{
-				return Error::NONE;
+				return Error::kNone;
 			}
 			else
 			{
-				return Error::UNKNOWN;
+				return Error::kUnknown;
 			}
 		});
 
-		ANKI_TEST_EXPECT_EQ(err, Error::NONE);
+		ANKI_TEST_EXPECT_EQ(err, Error::kNone);
 
 		a.sort([](I& a, I& b) -> Bool {
 			return a > b;
@@ -72,17 +72,17 @@ ANKI_TEST(Util, List)
 		err = a.iterateForward([&](const I& i) -> Error {
 			if(arr2[u++] == i)
 			{
-				return Error::NONE;
+				return Error::kNone;
 			}
 			else
 			{
-				return Error::UNKNOWN;
+				return Error::kUnknown;
 			}
 		});
 
-		ANKI_TEST_EXPECT_EQ(err, Error::NONE);
+		ANKI_TEST_EXPECT_EQ(err, Error::kNone);
 
-		a.destroy(alloc);
+		a.destroy(pool);
 	}
 
 	// Extreme sort
@@ -96,7 +96,7 @@ ANKI_TEST(Util, List)
 			I32 randVal = rand();
 			Foo f(randVal);
 
-			a.pushBack(alloc, f);
+			a.pushBack(pool, f);
 			b.push_back(f);
 		}
 
@@ -129,18 +129,18 @@ ANKI_TEST(Util, List)
 
 		ANKI_TEST_EXPECT_EQ(ait, aend);
 		ANKI_TEST_EXPECT_EQ(bit, bend);
-		a.destroy(alloc);
+		a.destroy(pool);
 	}
 
 	// Iterate
 	{
 		List<I> a;
-		Error err = Error::NONE;
+		Error err = Error::kNone;
 
-		a.emplaceBack(alloc, 10);
-		a.emplaceBack(alloc, 9);
-		a.emplaceBack(alloc, 11);
-		a.emplaceBack(alloc, 2);
+		a.emplaceBack(pool, 10);
+		a.emplaceBack(pool, 9);
+		a.emplaceBack(pool, 11);
+		a.emplaceBack(pool, 2);
 
 		Array<I, 4> arr = {{10, 9, 11, 2}};
 		U count = 0;
@@ -151,11 +151,11 @@ ANKI_TEST(Util, List)
 		{
 			if(*it != arr[count++])
 			{
-				err = Error::UNKNOWN;
+				err = Error::kUnknown;
 			}
 		}
 
-		ANKI_TEST_EXPECT_EQ(err, Error::NONE);
+		ANKI_TEST_EXPECT_EQ(err, Error::kNone);
 
 		// Backwards
 		--it;
@@ -163,42 +163,42 @@ ANKI_TEST(Util, List)
 		{
 			if(*it != arr[--count])
 			{
-				err = Error::UNKNOWN;
+				err = Error::kUnknown;
 			}
 		}
 
-		ANKI_TEST_EXPECT_EQ(err, Error::NONE);
+		ANKI_TEST_EXPECT_EQ(err, Error::kNone);
 
-		a.destroy(alloc);
+		a.destroy(pool);
 	}
 
 	// Erase
 	{
 		List<I> a;
 
-		a.emplaceBack(alloc, 10);
+		a.emplaceBack(pool, 10);
 
-		a.erase(alloc, a.getBegin());
+		a.erase(pool, a.getBegin());
 		ANKI_TEST_EXPECT_EQ(a.isEmpty(), true);
 
-		a.emplaceBack(alloc, 10);
-		a.emplaceBack(alloc, 20);
+		a.emplaceBack(pool, 10);
+		a.emplaceBack(pool, 20);
 
-		a.erase(alloc, a.getBegin() + 1);
+		a.erase(pool, a.getBegin() + 1);
 		ANKI_TEST_EXPECT_EQ(10, *a.getBegin());
 
-		a.emplaceFront(alloc, 5);
-		a.emplaceBack(alloc, 30);
+		a.emplaceFront(pool, 5);
+		a.emplaceBack(pool, 30);
 
 		ANKI_TEST_EXPECT_EQ(5, *(a.getBegin()));
 		ANKI_TEST_EXPECT_EQ(10, *(a.getEnd() - 2));
 		ANKI_TEST_EXPECT_EQ(30, *(a.getEnd() - 1));
 
-		a.erase(alloc, a.getEnd() - 2);
+		a.erase(pool, a.getEnd() - 2);
 		ANKI_TEST_EXPECT_EQ(5, *(a.getBegin()));
 		ANKI_TEST_EXPECT_EQ(30, *(a.getEnd() - 1));
 
-		a.erase(alloc, a.getBegin());
-		a.erase(alloc, a.getBegin());
+		a.erase(pool, a.getBegin());
+		a.erase(pool, a.getBegin());
 	}
 }

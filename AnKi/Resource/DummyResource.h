@@ -25,24 +25,24 @@ public:
 	{
 		if(m_memory)
 		{
-			getAllocator().deallocate(m_memory, 128);
+			getMemoryPool().free(m_memory);
 		}
 	}
 
 	Error load(const ResourceFilename& filename, [[maybe_unused]] Bool async)
 	{
-		Error err = Error::NONE;
-		if(filename.find("error") == ResourceFilename::NPOS)
+		Error err = Error::kNone;
+		if(filename.find("error") == CString::kNpos)
 		{
-			m_memory = getAllocator().allocate(128);
-			void* tempMem = getTempAllocator().allocate(128);
+			m_memory = getMemoryPool().allocate(128, 1);
+			void* tempMem = getTempMemoryPool().allocate(128, 1);
 
-			getTempAllocator().deallocate(tempMem, 128);
+			getTempMemoryPool().free(tempMem);
 		}
 		else
 		{
 			ANKI_RESOURCE_LOGE("Dummy error");
-			err = Error::USER_DATA;
+			err = Error::kUserData;
 		}
 
 		return err;

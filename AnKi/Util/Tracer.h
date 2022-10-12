@@ -61,8 +61,8 @@ using TracerFlushCallback = void (*)(void* userData, ThreadId tid, ConstWeakArra
 class Tracer
 {
 public:
-	Tracer(GenericMemoryPoolAllocator<U8> alloc)
-		: m_alloc(alloc)
+	Tracer(BaseMemoryPool* pool)
+		: m_pool(pool)
 	{
 	}
 
@@ -103,13 +103,13 @@ public:
 	}
 
 private:
-	static constexpr U32 EVENTS_PER_CHUNK = 256;
-	static constexpr U32 COUNTERS_PER_CHUNK = 512;
+	static constexpr U32 kEventsPerChunk = 256;
+	static constexpr U32 kCountersPerChunk = 512;
 
 	class ThreadLocal;
 	class Chunk;
 
-	GenericMemoryPoolAllocator<U8> m_alloc;
+	BaseMemoryPool* m_pool = nullptr;
 
 	static thread_local ThreadLocal* m_threadLocal;
 	DynamicArray<ThreadLocal*> m_allThreadLocal; ///< The Tracer should know about all the ThreadLocal.

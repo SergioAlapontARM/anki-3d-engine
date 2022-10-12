@@ -39,7 +39,7 @@ public:
 			m_textureView = m_imageResource->getTextureView();
 		}
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 private:
@@ -60,12 +60,12 @@ private:
 	{
 		const Texture& grTex = *m_imageResource->getTexture().get();
 		const U32 colorComponentCount = getFormatInfo(grTex.getFormat()).m_componentCount;
-		ANKI_ASSERT(grTex.getTextureType() == TextureType::_2D || grTex.getTextureType() == TextureType::_3D);
+		ANKI_ASSERT(grTex.getTextureType() == TextureType::k2D || grTex.getTextureType() == TextureType::k3D);
 
 		if(!m_imageGrProgram.isCreated())
 		{
 			ShaderProgramResourceVariantInitInfo variantInit(m_imageProgram);
-			variantInit.addMutation("TEXTURE_TYPE", (grTex.getTextureType() == TextureType::_2D) ? 0 : 1);
+			variantInit.addMutation("TEXTURE_TYPE", (grTex.getTextureType() == TextureType::k2D) ? 0 : 1);
 
 			const ShaderProgramResourceVariant* variant;
 			m_imageProgram->getOrCreateVariant(variantInit, variant);
@@ -121,7 +121,7 @@ private:
 
 		// Mips combo
 		{
-			StringListAuto mipLabels(getFrameAllocator());
+			StringListRaii mipLabels(&getFrameMemoryPool());
 			for(U32 mip = 0; mip < grTex.getMipmapCount(); ++mip)
 			{
 				mipLabels.pushBackSprintf("Mip %u (%u x %u)", mip, grTex.getWidth() >> mip, grTex.getHeight() >> mip);
@@ -159,9 +159,9 @@ private:
 		}
 
 		// Depth
-		if(grTex.getTextureType() == TextureType::_3D)
+		if(grTex.getTextureType() == TextureType::k3D)
 		{
-			StringListAuto labels(getFrameAllocator());
+			StringListRaii labels(&getFrameMemoryPool());
 			for(U32 d = 0; d < grTex.getDepth(); ++d)
 			{
 				labels.pushBackSprintf("Depth %u", d);
@@ -272,11 +272,11 @@ public:
 		if(argc < 2)
 		{
 			ANKI_LOGE("Wrong number of arguments");
-			return Error::USER_DATA;
+			return Error::kUserData;
 		}
 
-		HeapAllocator<U32> alloc(allocAligned, nullptr);
-		StringAuto mainDataPath(alloc, ANKI_SOURCE_DIRECTORY);
+		HeapMemoryPool pool(allocAligned, nullptr);
+		StringRaii mainDataPath(&pool, ANKI_SOURCE_DIRECTORY);
 
 		config->setWindowFullscreen(false);
 		config->setRsrcDataPaths(mainDataPath);
@@ -291,7 +291,7 @@ public:
 		ANKI_CHECK(getResourceManager().loadResource(argv[1], image, false));
 
 		// Change window name
-		StringAuto title(alloc);
+		StringRaii title(&pool);
 		title.sprintf("%s %u x %u Mips %u Format %s", argv[1], image->getWidth(), image->getHeight(),
 					  image->getTexture()->getMipmapCount(), getFormatInfo(image->getTexture()->getFormat()).m_name);
 		getWindow().setWindowTitle(title);
@@ -300,26 +300,26 @@ public:
 		SceneGraph& scene = getSceneGraph();
 		TextureViewerUiNode* node;
 		ANKI_CHECK(scene.newSceneNode("TextureViewer", node));
-		node->m_imageResource = image;
+		node->m_imageResource = std::move(image);
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	Error userMainLoop(Bool& quit, [[maybe_unused]] Second elapsedTime) override
 	{
 		Input& input = getInput();
-		if(input.getKey(KeyCode::ESCAPE))
+		if(input.getKey(KeyCode::kEscape))
 		{
 			quit = true;
 		}
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 };
 
 int main(int argc, char* argv[])
 {
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 
 	ConfigSet config(allocAligned, nullptr);
 	MyApp* app = new MyApp;

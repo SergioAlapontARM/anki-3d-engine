@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <AnKi/Util/Allocator.h>
+#include <AnKi/Util/MemoryPool.h>
 #include <AnKi/Util/Forward.h>
 #include <functional>
 
@@ -31,15 +31,32 @@ public:
 		: m_value(std::forward<TArgs>(args)...)
 	{
 	}
+};
 
-	T& getListNodeValue()
+/// Gets the value of a list node.
+/// @internal
+template<typename TNode, typename TValue>
+class GetListNodeValueFunc
+{
+public:
+	TValue& operator()(TNode& node);
+	const TValue& operator()(const TNode& node) const;
+};
+
+/// Specialization for ListNode
+/// @internal
+template<typename TValue>
+class GetListNodeValueFunc<ListNode<TValue>, TValue>
+{
+public:
+	TValue& operator()(ListNode<TValue>& node)
 	{
-		return m_value;
+		return node.m_value;
 	}
 
-	const T& getListNodeValue() const
+	const TValue& operator()(const ListNode<TValue>& node) const
 	{
-		return m_value;
+		return node.m_value;
 	}
 };
 
@@ -91,13 +108,17 @@ public:
 	TValueReference operator*() const
 	{
 		ANKI_ASSERT(m_node);
-		return m_node->getListNodeValue();
+		using NodeType = typename RemovePointer<TNodePointer>::Type;
+		using ValueType = typename RemovePointer<TValuePointer>::Type;
+		return detail::GetListNodeValueFunc<NodeType, ValueType>()(*m_node);
 	}
 
 	TValuePointer operator->() const
 	{
 		ANKI_ASSERT(m_node);
-		return &m_node->getListNodeValue();
+		using NodeType = typename RemovePointer<TNodePointer>::Type;
+		using ValueType = typename RemovePointer<TValuePointer>::Type;
+		return &detail::GetListNodeValueFunc<NodeType, ValueType>()(*m_node);
 	}
 
 	ListIterator& operator++()
@@ -211,28 +232,28 @@ public:
 	ConstReference getFront() const
 	{
 		ANKI_ASSERT(!isEmpty());
-		return m_head->getListNodeValue();
+		return detail::GetListNodeValueFunc<TNode, T>()(*m_head);
 	}
 
 	/// Get first element.
 	Reference getFront()
 	{
 		ANKI_ASSERT(!isEmpty());
-		return m_head->getListNodeValue();
+		return detail::GetListNodeValueFunc<TNode, T>()(*m_head);
 	}
 
 	/// Get last element.
 	ConstReference getBack() const
 	{
 		ANKI_ASSERT(!isEmpty());
-		return m_tail->getListNodeValue();
+		return detail::GetListNodeValueFunc<TNode, T>()(*m_tail);
 	}
 
 	/// Get last element.
 	Reference getBack()
 	{
 		ANKI_ASSERT(!isEmpty());
-		return m_tail->getListNodeValue();
+		return detail::GetListNodeValueFunc<TNode, T>()(*m_tail);
 	}
 
 	/// Get begin.
@@ -372,91 +393,91 @@ public:
 	}
 
 	/// Destroy the list.
-	template<typename TAllocator>
-	void destroy(TAllocator alloc);
+	template<typename TMemPool>
+	void destroy(TMemPool& pool);
 
 	/// Copy an element at the end of the list.
-	template<typename TAllocator>
-	Iterator pushBack(TAllocator alloc, const T& x)
+	template<typename TMemPool>
+	Iterator pushBack(TMemPool& pool, const T& x)
 	{
-		Node* node = alloc.template newInstance<Node>(x);
+		Node* node = newInstance<Node>(pool, x);
 		Base::pushBackNode(node);
 		return Iterator(node, this);
 	}
 
 	/// Construct an element at the end of the list.
-	template<typename TAllocator, typename... TArgs>
-	Iterator emplaceBack(TAllocator alloc, TArgs&&... args)
+	template<typename TMemPool, typename... TArgs>
+	Iterator emplaceBack(TMemPool& pool, TArgs&&... args)
 	{
-		Node* node = alloc.template newInstance<Node>(std::forward<TArgs>(args)...);
+		Node* node = newInstance<Node>(pool, std::forward<TArgs>(args)...);
 		Base::pushBackNode(node);
 		return Iterator(node, this);
 	}
 
 	/// Copy an element at the beginning of the list.
-	template<typename TAllocator>
-	Iterator pushFront(TAllocator alloc, const T& x)
+	template<typename TMemPool>
+	Iterator pushFront(TMemPool& pool, const T& x)
 	{
-		Node* node = alloc.template newInstance<Node>(x);
+		Node* node = newInstance<Node>(pool, x);
 		Base::pushFrontNode(node);
 		return Iterator(node, this);
 	}
 
 	/// Construct element at the beginning of the list.
-	template<typename TAllocator, typename... TArgs>
-	Iterator emplaceFront(TAllocator alloc, TArgs&&... args)
+	template<typename TMemPool, typename... TArgs>
+	Iterator emplaceFront(TMemPool& pool, TArgs&&... args)
 	{
-		Node* node = alloc.template newInstance<Node>(std::forward<TArgs>(args)...);
+		Node* node = newInstance<Node>(pool, std::forward<TArgs>(args)...);
 		Base::pushFrontNode(node);
 		return Iterator(node, this);
 	}
 
 	/// Copy an element at the given position of the list.
-	template<typename TAllocator>
-	Iterator insert(TAllocator alloc, Iterator pos, const T& x)
+	template<typename TMemPool>
+	Iterator insert(TMemPool& pool, Iterator pos, const T& x)
 	{
-		Node* node = alloc.template newInstance<Node>(x);
+		Node* node = newInstance<Node>(pool, x);
 		Base::insertNode(pos.m_node, node);
 		return Iterator(node, this);
 	}
 
 	/// Construct element at the the given position.
-	template<typename TAllocator, typename... TArgs>
-	Iterator emplace(TAllocator alloc, Iterator pos, TArgs&&... args)
+	template<typename TMemPool, typename... TArgs>
+	Iterator emplace(TMemPool& pool, Iterator pos, TArgs&&... args)
 	{
-		Node* node = alloc.template newInstance<Node>(std::forward<TArgs>(args)...);
+		Node* node = newInstance<Node>(pool, std::forward<TArgs>(args)...);
 		Base::insertNode(pos.m_node, node);
 		return Iterator(node, this);
 	}
 
 	/// Pop a value from the back of the list.
-	template<typename TAllocator>
-	void popBack(TAllocator alloc)
+	template<typename TMemPool>
+	void popBack(TMemPool& pool)
 	{
 		ANKI_ASSERT(Base::m_tail);
 		Node* node = Base::m_tail;
 		Base::popBack();
-		alloc.deleteInstance(node);
+		deleteInstance(pool, node);
 	}
 
 	/// Pop a value from the front of the list.
-	template<typename TAllocator>
-	void popFront(TAllocator alloc)
+	template<typename TMemPool>
+	void popFront(TMemPool& pool)
 	{
 		ANKI_ASSERT(Base::m_head);
 		Node* node = Base::m_head;
 		Base::popFront();
-		alloc.deleteInstance(node);
+		deleteInstance(pool, node);
 	}
 
 	/// Erase an element.
-	template<typename TAllocator>
-	void erase(TAllocator alloc, Iterator pos)
+	template<typename TMemPool>
+	void erase(TMemPool& pool, Iterator pos)
 	{
 		ANKI_ASSERT(pos.m_node);
 		ANKI_ASSERT(pos.m_list == this);
 		Base::removeNode(pos.m_node);
-		alloc.deleteInstance(pos.m_node);
+		deleteInstance(pool, pos.m_node);
 	}
 
 private:
@@ -468,36 +489,37 @@ private:
 };
 
 /// List with automatic destruction.
-template<typename T>
-class ListAuto : public List<T>
+template<typename T, typename TMemPool = MemoryPoolPtrWrapper<BaseMemoryPool>>
+class ListRaii : public List<T>
 {
 public:
 	using Base = List<T>;
 	using Value = T;
 	using typename Base::Iterator;
+	using MemoryPool = TMemPool;
 
-	/// Construct using an allocator.
-	ListAuto(GenericMemoryPoolAllocator<T> alloc)
+	/// Construct using a mem pool.
+	ListRaii(const MemoryPool& pool)
 		: Base()
-		, m_alloc(alloc)
+		, m_pool(pool)
 	{
 	}
 
 	/// Move.
-	ListAuto(ListAuto&& b)
+	ListRaii(ListRaii&& b)
 		: Base()
 	{
 		move(b);
 	}
 
 	/// Destroy.
-	~ListAuto()
+	~ListRaii()
 	{
-		Base::destroy(m_alloc);
+		Base::destroy(m_pool);
 	}
 
 	/// Move.
-	ListAuto& operator=(ListAuto&& b)
+	ListRaii& operator=(ListRaii&& b)
 	{
 		move(b);
 		return *this;
@@ -506,61 +528,61 @@ public:
 	/// Copy an element at the end of the list.
 	Iterator pushBack(const Value& x)
 	{
-		return Base::pushBack(m_alloc, x);
+		return Base::pushBack(m_pool, x);
 	}
 
 	/// Construct an element at the end of the list.
 	template<typename... TArgs>
 	Iterator emplaceBack(TArgs&&... args)
 	{
-		return Base::emplaceBack(m_alloc, std::forward<TArgs>(args)...);
+		return Base::emplaceBack(m_pool, std::forward<TArgs>(args)...);
 	}
 
 	/// Construct element at the beginning of the list.
 	template<typename... TArgs>
 	Iterator emplaceFront(TArgs&&... args)
 	{
-		return Base::emplaceFront(m_alloc, std::forward<TArgs>(args)...);
+		return Base::emplaceFront(m_pool, std::forward<TArgs>(args)...);
 	}
 
 	/// Construct element at the the given position.
 	template<typename... TArgs>
 	Iterator emplace(Iterator pos, TArgs&&... args)
 	{
-		return Base::emplace(m_alloc, pos, std::forward(args)...);
+		return Base::emplace(m_pool, pos, std::forward(args)...);
 	}
 
 	/// Pop a value from the back of the list.
 	void popBack()
 	{
-		Base::popBack(m_alloc);
+		Base::popBack(m_pool);
 	}
 
 	/// Pop a value from the front of the list.
 	void popFront()
 	{
-		Base::popFront(m_alloc);
+		Base::popFront(m_pool);
 	}
 
 	/// Erase an element.
 	void erase(Iterator position)
 	{
-		Base::erase(m_alloc, position);
+		Base::erase(m_pool, position);
 	}
 
 	/// Destroy the list.
 	void destroy()
 	{
-		Base::destroy(m_alloc);
+		Base::destroy(m_pool);
 	}
 
 private:
-	GenericMemoryPoolAllocator<T> m_alloc;
+	MemoryPool m_pool;
 
-	void move(ListAuto& b)
+	void move(ListRaii& b)
 	{
 		Base::move(b);
-		m_alloc = b.m_alloc;
+		m_pool = std::move(b.m_alloc);
 	}
 };
 
@@ -582,28 +604,55 @@ class IntrusiveListEnabled
 
 	friend TClass;
 
+public:
+	TClass* getPreviousListNode()
+	{
+		return m_prev;
+	}
+
+	const TClass* getPreviousListNode() const
+	{
+		return m_prev;
+	}
+
+	TClass* getNextListNode()
+	{
+		return m_next;
+	}
+
+	const TClass* getNextListNode() const
+	{
+		return m_next;
+	}
+
 private:
-	TClass* m_prev;
-	TClass* m_next;
+	TClass* m_prev = nullptr;
+	TClass* m_next = nullptr;
+};
 
-	IntrusiveListEnabled()
-		: m_prev(nullptr)
-		, m_next(nullptr)
+namespace detail {
+
+/// Specialization for IntrusiveListEnabled
+/// @internal
+template<typename TValue>
+class GetListNodeValueFunc<TValue, TValue>
+{
+public:
+	TValue& operator()(TValue& node)
 	{
+		return node;
 	}
 
-	TClass& getListNodeValue()
+	const TValue& operator()(const TValue& node) const
 	{
-		return *static_cast<TClass*>(this);
-	}
-
-	const TClass& getListNodeValue() const
-	{
-		return *static_cast<const TClass*>(this);
+		return node;
 	}
 };
 
-/// List that doesn't perform any allocations. To work the T nodes will have to inherit from IntrusiveListEnabled.
+} // end namespace detail
+
+/// List that doesn't perform any allocations. To work the T nodes will have to inherit from IntrusiveListEnabled or
+/// have 2 member functions and their const versions. The 2 functions are getPreviousListNode() and getNextListNode().
 template<typename T>
 class IntrusiveList : public detail::ListBase<T, T>
 {

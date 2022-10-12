@@ -31,7 +31,7 @@ SpatialComponent::~SpatialComponent()
 		m_node->getSceneGraph().getOctree().remove(m_octreeInfo);
 	}
 
-	m_convexHullPoints.destroy(m_node->getAllocator());
+	m_convexHullPoints.destroy(m_node->getMemoryPool());
 }
 
 void SpatialComponent::setConvexHullWorldSpace(const ConvexHullShape& hull)
@@ -40,7 +40,7 @@ void SpatialComponent::setConvexHullWorldSpace(const ConvexHullShape& hull)
 
 	if(m_convexHullPoints.getSize() != hull.getPoints().getSize())
 	{
-		m_convexHullPoints.resize(m_node->getAllocator(), hull.getPoints().getSize());
+		m_convexHullPoints.resize(m_node->getMemoryPool(), hull.getPoints().getSize());
 	}
 
 	memcpy(&m_convexHullPoints[0], &hull.getPoints()[0], hull.getPoints().getSizeInBytes());
@@ -51,7 +51,7 @@ void SpatialComponent::setConvexHullWorldSpace(const ConvexHullShape& hull)
 		m_hull.setTransform(hull.getTransform());
 	}
 
-	m_collisionObjectType = hull.CLASS_TYPE;
+	m_collisionObjectType = hull.kClassType;
 	m_markedForUpdate = true;
 }
 
@@ -67,16 +67,16 @@ Error SpatialComponent::update([[maybe_unused]] SceneComponentUpdateInfo& info, 
 			// Compute the AABB
 			switch(m_collisionObjectType)
 			{
-			case CollisionShapeType::AABB:
+			case CollisionShapeType::kAABB:
 				m_derivedAabb = m_aabb;
 				break;
-			case CollisionShapeType::OBB:
+			case CollisionShapeType::kOBB:
 				m_derivedAabb = computeAabb(m_obb);
 				break;
-			case CollisionShapeType::SPHERE:
+			case CollisionShapeType::kSphere:
 				m_derivedAabb = computeAabb(m_sphere);
 				break;
-			case CollisionShapeType::CONVEX_HULL:
+			case CollisionShapeType::kConvexHull:
 				m_derivedAabb = computeAabb(m_hull);
 				break;
 			default:
@@ -96,7 +96,7 @@ Error SpatialComponent::update([[maybe_unused]] SceneComponentUpdateInfo& info, 
 
 	m_octreeInfo.reset();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

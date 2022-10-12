@@ -9,6 +9,7 @@
 #pragma once
 
 #include <AnKi/Util/StdTypes.h>
+#include <AnKi/Util/Forward.h>
 #include <AnKi/Util/Assert.h>
 #include <cmath>
 #include <utility>
@@ -59,7 +60,7 @@ struct DummyType
 template<bool B>
 struct RequiresBool
 {
-	static constexpr bool VALUE = B;
+	static constexpr bool kValue = B;
 };
 
 template<typename T, int N>
@@ -72,15 +73,15 @@ struct PrivateEnum
 {
 	enum class Type
 	{
-		NA
+		kNA
 	};
 };
 
-#	define ANKI_REQUIRES_BOOL(line, ...) RequiresUnwrap<decltype(RequiresBool<(__VA_ARGS__)>{}), line>::VALUE
+#	define ANKI_REQUIRES_BOOL(line, ...) RequiresUnwrap<decltype(RequiresBool<(__VA_ARGS__)>{}), line>::kValue
 
 #	define ANKI_ENABLE_INTERNAL(line, ...) \
 		typename PrivateEnum<line>::Type ANKI_CONCATENATE( \
-			privateEnum, line) = PrivateEnum<line>::Type::NA, \
+			privateEnum, line) = PrivateEnum<line>::Type::kNA, \
 						 bool ANKI_CONCATENATE(privateBool, line) = true, \
 						 typename = typename std::enable_if_t<(ANKI_CONCATENATE(privateBool, line) \
 															   && ANKI_REQUIRES_BOOL(line, __VA_ARGS__))>
@@ -131,7 +132,7 @@ template<typename T, ANKI_ENABLE(std::is_floating_point<T>::value)>
 T getRandomRange(T min, T max)
 {
 	ANKI_ASSERT(min <= max);
-	const F64 r = F64(getRandom()) / F64(MAX_U64);
+	const F64 r = F64(getRandom()) / F64(kMaxU64);
 	return T(min + r * (max - min));
 }
 
@@ -293,6 +294,12 @@ struct RemovePointer<T*>
 	using Type = T;
 };
 
+template<typename T>
+struct RemovePointer<const T*>
+{
+	using Type = T;
+};
+
 /// Zero memory of an object
 template<typename T>
 void zeroMemory(T& x)
@@ -339,6 +346,136 @@ inline void splitThreadedProblem(U32 threadId, U32 threadCount, U32 problemSize,
 	start = threadId * div;
 	end = (threadId == threadCount - 1) ? problemSize : (threadId + 1u) * div;
 	ANKI_ASSERT(!(threadId == threadCount - 1 && end != problemSize));
+}
+
+/// Just copy the memory of a float to a uint.
+inline U64 floatBitsToUint(F64 f)
+{
+	U64 out;
+	memcpy(&out, &f, sizeof(out));
+	return out;
+}
+
+/// Just copy the memory of a float to a uint.
+inline U32 floatBitsToUint(F32 f)
+{
+	U32 out;
+	memcpy(&out, &f, sizeof(out));
+	return out;
+}
+
+/// Call one of the costructors of an object.
+template<typename T, typename... TArgs>
+void callConstructor(T& p, TArgs&&... args)
+{
+	::new(&p) T(std::forward<TArgs>(args)...);
+}
+
+/// Call the destructor of an object.
+template<typename T>
+void callDestructor(T& p)
+{
+	static_assert(sizeof(T) > 0, "Incomplete type");
+	p.~T();
+}
+
+#define ANKI_FRIEND_CALL_CONSTRUCTOR_AND_DESTRUCTOR \
+	template<typename T, typename... TArgs> \
+	friend void callConstructor(T& p, TArgs&&... args); \
+	template<typename T> \
+	friend void callDestructor(T& p);
+
+/// Allocate a new object and call it's constructor
+template<typename T, typename TMemPool, typename... TArgs>
+[[nodiscard]] T* newInstance(TMemPool& pool, TArgs&&... args)
+{
+	T* ptr = static_cast<T*>(pool.allocate(sizeof(T), alignof(T)));
+	if(ANKI_LIKELY(ptr))
+	{
+		callConstructor(*ptr, std::forward<TArgs>(args)...);
+	}
+
+	return ptr;
+}
+
+/// Allocate a new array of objects and call their constructor
+template<typename T, typename TMemPool>
+[[nodiscard]] T* newArray(TMemPool& pool, PtrSize n)
+{
+	T* ptr = static_cast<T*>(pool.allocate(n * sizeof(T), alignof(T)));
+	if(ANKI_LIKELY(ptr))
+	{
+		for(PtrSize i = 0; i < n; i++)
+		{
+			callConstructor(ptr[i]);
+		}
+	}
+
+	return ptr;
+}
+
+/// Allocate a new array of objects and call their constructor
+template<typename T, typename TMemPool>
+[[nodiscard]] T* newArray(TMemPool& pool, PtrSize n, const T& copy)
+{
+	T* ptr = static_cast<T*>(pool.allocate(n * sizeof(T), alignof(T)));
+	if(ANKI_LIKELY(ptr))
+	{
+		for(PtrSize i = 0; i < n; i++)
+		{
+			callConstructor(ptr[i], copy);
+		}
+	}
+
+	return ptr;
+}
+
+/// Allocate a new array of objects and call their constructor.
+/// @note The output is a parameter (instead of a return value) to work with template deduction.
+template<typename T, typename TMemPool, typename TSize>
+void newArray(TMemPool& pool, PtrSize n, WeakArray<T, TSize>& out)
+{
+	T* arr = newArray<T>(pool, n);
+	ANKI_ASSERT(n < getMaxNumericLimit<TSize>());
+	out.setArray(arr, TSize(n));
+}
+
+/// Call the destructor and deallocate an object.
+template<typename T, typename TMemPool>
+void deleteInstance(TMemPool& pool, T* ptr)
+{
+	if(ANKI_LIKELY(ptr != nullptr))
+	{
+		callDestructor(*ptr);
+		pool.free(ptr);
+	}
+}
+
+/// Call the destructor and deallocate an array of objects.
+template<typename T, typename TMemPool>
+void deleteArray(TMemPool& pool, T* arr, PtrSize n)
+{
+	if(ANKI_LIKELY(arr != nullptr))
+	{
+		for(PtrSize i = 0; i < n; i++)
+		{
+			callDestructor(arr[i]);
+		}
+
+		pool.free(arr);
+	}
+	else
+	{
+		ANKI_ASSERT(n == 0);
+	}
+}
+
+/// Call the destructor and deallocate an array of objects.
+template<typename T, typename TMemPool, typename TSize>
+void deleteArray(TMemPool& pool, WeakArray<T, TSize>& arr)
+{
+	deleteArray(pool, arr.getBegin(), arr.getSize());
+	arr.setArray(nullptr, 0);
 }
 /// @}
 

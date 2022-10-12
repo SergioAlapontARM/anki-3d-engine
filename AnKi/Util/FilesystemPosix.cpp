@@ -66,7 +66,7 @@ class WalkDirectoryTreeCallbackContext
 public:
 	const Function<Error(const CString&, Bool)>* m_callback = nullptr;
 	U32 m_prefixLen;
-	Error m_err = {Error::NONE};
+	Error m_err = {Error::kNone};
 };
 
 static thread_local WalkDirectoryTreeCallbackContext g_walkDirectoryTreeContext;
@@ -106,7 +106,7 @@ static int walkDirectoryTreeCallback(const char* filepath, [[maybe_unused]] cons
 Error walkDirectoryTreeInternal(const CString& dir, const Function<Error(const CString&, Bool)>& callback)
 {
 	ANKI_ASSERT(dir.getLength() > 0);
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 
 	// Compute how long it will be the prefix fts_read will add
 	U32 prefixLen = dir.getLength();
@@ -118,13 +118,13 @@ Error walkDirectoryTreeInternal(const CString& dir, const Function<Error(const C
 	WalkDirectoryTreeCallbackContext& ctx = g_walkDirectoryTreeContext;
 	ctx.m_callback = &callback;
 	ctx.m_prefixLen = prefixLen;
-	ctx.m_err = Error::NONE;
+	ctx.m_err = Error::kNone;
 
 	const int result = nftw(dir.cstr(), walkDirectoryTreeCallback, USE_FDS, FTW_PHYS);
 	if(result != 0)
 	{
 		ANKI_UTIL_LOGE("nftw() failed");
-		err = Error::FUNCTION_FAILED;
+		err = Error::kFunctionFailed;
 	}
 	else
 	{
@@ -134,7 +134,7 @@ Error walkDirectoryTreeInternal(const CString& dir, const Function<Error(const C
 	return err;
 }
 
-static Error removeDirectoryInternal(const CString& dirname, GenericMemoryPoolAllocator<U8>& alloc)
+static Error removeDirectoryInternal(const CString& dirname, BaseMemoryPool& pool)
 {
 	DIR* dir;
 	struct dirent* entry;
@@ -143,19 +143,19 @@ static Error removeDirectoryInternal(const CString& dirname, GenericMemoryPoolAl
 	if(dir == nullptr)
 	{
 		ANKI_UTIL_LOGE("opendir() failed");
-		return Error::FUNCTION_FAILED;
+		return Error::kFunctionFailed;
 	}
 
 	while((entry = readdir(dir)) != nullptr)
 	{
 		if(strcmp(entry->d_name, ".") && strcmp(entry->d_name, ".."))
 		{
-			StringAuto path(alloc);
+			StringRaii path(&pool);
 			path.sprintf("%s/%s", dirname.cstr(), entry->d_name);
 
 			if(entry->d_type == DT_DIR)
 			{
-				Error err = removeDirectoryInternal(path.toCString(), alloc);
+				Error err = removeDirectoryInternal(path.toCString(), pool);
 				if(err)
 				{
 					return err;
@@ -171,39 +171,39 @@ static Error removeDirectoryInternal(const CString& dirname, GenericMemoryPoolAl
 	closedir(dir);
 	remove(dirname.cstr());
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
-Error removeDirectory(const CString& dirname, GenericMemoryPoolAllocator<U8> alloc)
+Error removeDirectory(const CString& dirname, BaseMemoryPool& pool)
 {
-	return removeDirectoryInternal(dirname, alloc);
+	return removeDirectoryInternal(dirname, pool);
 }
 
 Error createDirectory(const CString& dir)
 {
 	if(directoryExists(dir))
 	{
-		return Error::NONE;
+		return Error::kNone;
 	}
 
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 	if(mkdir(dir.cstr(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH))
 	{
 		ANKI_UTIL_LOGE("%s : %s", strerror(errno), dir.cstr());
-		err = Error::FUNCTION_FAILED;
+		err = Error::kFunctionFailed;
 	}
 
 	return err;
 }
 
-Error getHomeDirectory(StringAuto& out)
+Error getHomeDirectory(StringRaii& out)
 {
 #if ANKI_OS_LINUX
 	const char* home = getenv("HOME");
 	if(home == nullptr)
 	{
 		ANKI_UTIL_LOGE("HOME environment variable not set");
-		return Error::FUNCTION_FAILED;
+		return Error::kFunctionFailed;
 	}
 
 	out.create(home);
@@ -211,17 +211,17 @@ Error getHomeDirectory(StringAuto& out)
 	out.create(g_androidApp->activity->internalDataPath);
 #endif
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
-Error getTempDirectory(StringAuto& out)
+Error getTempDirectory(StringRaii& out)
 {
 #if ANKI_OS_LINUX
 	out.create("/tmp/");
 #else
 	out.create(g_androidApp->activity->internalDataPath);
 #endif
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error getFileModificationTime(CString filename, U32& year, U32& month, U32& day, U32& hour, U32& min, U32& second)
@@ -230,7 +230,7 @@ Error getFileModificationTime(CString filename, U32& year, U32& month, U32& day,
 	if(lstat(filename.cstr(), &buff))
 	{
 		ANKI_UTIL_LOGE("stat() failed");
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	struct tm t;
@@ -242,21 +242,22 @@ Error getFileModificationTime(CString filename, U32& year, U32& month, U32& day,
 	min = t.tm_min;
 	second = t.tm_sec;
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
-Error getApplicationPath(StringAuto& out)
+Error getApplicationPath(StringRaii& out)
 {
 #if ANKI_OS_ANDROID
 	ANKI_ASSERT(0 && "getApplicationPath() doesn't work on Android");
+	(void)out;
 #else
-	DynamicArrayAuto<Char> buff(out.getAllocator(), 1024);
+	DynamicArrayRaii<Char> buff(&out.getMemoryPool(), 1024);
 
 	const ssize_t result = readlink("/proc/self/exe", &buff[0], buff.getSize());
 	if(result < 0)
 	{
 		ANKI_UTIL_LOGE("readlink() failed");
-		return Error::FUNCTION_FAILED;
+		return Error::kFunctionFailed;
 	}
 
 	out.destroy();
@@ -265,7 +266,7 @@ Error getApplicationPath(StringAuto& out)
 	memcpy(&out[0], &buff[0], result);
 #endif
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

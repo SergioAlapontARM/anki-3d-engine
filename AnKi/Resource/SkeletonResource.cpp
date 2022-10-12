@@ -13,15 +13,15 @@ SkeletonResource::~SkeletonResource()
 {
 	for(Bone& b : m_bones)
 	{
-		b.destroy(getAllocator());
+		b.destroy(getMemoryPool());
 	}
 
-	m_bones.destroy(getAllocator());
+	m_bones.destroy(getMemoryPool());
 }
 
 Error SkeletonResource::load(const ResourceFilename& filename, [[maybe_unused]] Bool async)
 {
-	XmlDocument doc;
+	XmlDocument doc(&getTempMemoryPool());
 	ANKI_CHECK(openFileParseXml(filename, doc));
 
 	XmlElement rootEl;
@@ -37,9 +37,9 @@ Error SkeletonResource::load(const ResourceFilename& filename, [[maybe_unused]] 
 	ANKI_CHECK(boneEl.getSiblingElementsCount(boneCount));
 	++boneCount;
 
-	m_bones.create(getAllocator(), boneCount);
+	m_bones.create(getMemoryPool(), boneCount);
 
-	StringListAuto boneParents(getAllocator());
+	StringListRaii boneParents(&getMemoryPool());
 
 	// Load every bone
 	boneCount = 0;
@@ -51,7 +51,7 @@ Error SkeletonResource::load(const ResourceFilename& filename, [[maybe_unused]] 
 		// name
 		CString name;
 		ANKI_CHECK(boneEl.getAttributeText("name", name));
-		bone.m_name.create(getAllocator(), name);
+		bone.m_name.create(getMemoryPool(), name);
 
 		// transform
 		ANKI_CHECK(boneEl.getAttributeNumbers("transform", bone.m_transform));
@@ -71,10 +71,10 @@ Error SkeletonResource::load(const ResourceFilename& filename, [[maybe_unused]] 
 		{
 			boneParents.pushBack("");
 
-			if(m_rootBoneIdx != MAX_U32)
+			if(m_rootBoneIdx != kMaxU32)
 			{
 				ANKI_RESOURCE_LOGE("Skeleton cannot have more than one root nodes");
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
 			m_rootBoneIdx = boneCount;
@@ -106,14 +106,14 @@ Error SkeletonResource::load(const ResourceFilename& filename, [[maybe_unused]] 
 			{
 				ANKI_RESOURCE_LOGE("Bone \"%s\" is referencing an unknown parent \"%s\"", &bone.m_name[0],
 								   &it->toCString()[0]);
-				return Error::USER_DATA;
+				return Error::kUserData;
 			}
 
-			if(bone.m_parent->m_childrenCount >= MAX_CHILDREN_PER_BONE)
+			if(bone.m_parent->m_childrenCount >= kMaxChildrenPerBone)
 			{
 				ANKI_RESOURCE_LOGE("Bone \"%s\" cannot have more that %u children", &bone.m_parent->m_name[0],
-								   MAX_CHILDREN_PER_BONE);
-				return Error::USER_DATA;
+								   kMaxChildrenPerBone);
+				return Error::kUserData;
 			}
 
 			bone.m_parent->m_children[bone.m_parent->m_childrenCount++] = &bone;
@@ -122,7 +122,7 @@ Error SkeletonResource::load(const ResourceFilename& filename, [[maybe_unused]] 
 		++it;
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

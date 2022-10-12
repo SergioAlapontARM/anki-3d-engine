@@ -57,16 +57,14 @@ public:
 		return m_timestamp;
 	}
 
-	/// @note Return a copy
-	SceneAllocator<U8> getAllocator() const
+	HeapMemoryPool& getMemoryPool() const
 	{
-		return m_alloc;
+		return m_pool;
 	}
 
-	/// @note Return a copy
-	SceneFrameAllocator<U8> getFrameAllocator() const
+	StackMemoryPool& getFrameMemoryPool() const
 	{
-		return m_frameAlloc;
+		return m_framePool;
 	}
 
 	SceneNode& getActiveCameraNode()
@@ -127,7 +125,7 @@ public:
 			}
 		}
 
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	/// Iterate a range of scene nodes using a lambda
@@ -239,8 +237,8 @@ private:
 	UiManager* m_uiManager = nullptr;
 	ConfigSet* m_config = nullptr;
 
-	SceneAllocator<U8> m_alloc;
-	SceneFrameAllocator<U8> m_frameAlloc;
+	mutable HeapMemoryPool m_pool;
+	mutable StackMemoryPool m_framePool;
 
 	IntrusiveList<SceneNode> m_nodes;
 	U32 m_nodesCount = 0;
@@ -282,17 +280,16 @@ private:
 template<typename Node, typename... Args>
 inline Error SceneGraph::newSceneNode(const CString& name, Node*& node, Args&&... args)
 {
-	Error err = Error::NONE;
-	SceneAllocator<Node> al = m_alloc;
+	Error err = Error::kNone;
 
-	node = al.template newInstance<Node>(this, name);
+	node = newInstance<Node>(m_pool, this, name);
 	if(node)
 	{
 		err = node->init(std::forward<Args>(args)...);
 	}
 	else
 	{
-		err = Error::OUT_OF_MEMORY;
+		err = Error::kOutOfMemory;
 	}
 
 	if(!err)
@@ -306,7 +303,7 @@ inline Error SceneGraph::newSceneNode(const CString& name, Node*& node, Args&&..
 
 		if(node)
 		{
-			al.deleteInstance(node);
+			deleteInstance(m_pool, node);
 			node = nullptr;
 		}
 	}
@@ -321,7 +318,7 @@ Error SceneGraph::iterateSceneNodes(PtrSize begin, PtrSize end, Func func)
 	auto it = m_nodes.getBegin() + begin;
 
 	PtrSize count = end - begin;
-	Error err = Error::NONE;
+	Error err = Error::kNone;
 	while(count-- != 0 && !err)
 	{
 		ANKI_ASSERT(it != m_nodes.getEnd());
@@ -330,7 +327,7 @@ Error SceneGraph::iterateSceneNodes(PtrSize begin, PtrSize end, Func func)
 		++it;
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 /// @}
 

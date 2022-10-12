@@ -7,7 +7,7 @@
 
 namespace anki {
 
-void getFilepathExtension(const CString& filename, StringAuto& out)
+void getFilepathExtension(const CString& filename, StringRaii& out)
 {
 	const Char* pc = std::strrchr(filename.cstr(), '.');
 
@@ -25,7 +25,7 @@ void getFilepathExtension(const CString& filename, StringAuto& out)
 	}
 }
 
-void getFilepathFilename(const CString& filename, StringAuto& out)
+void getFilepathFilename(const CString& filename, StringRaii& out)
 {
 	const Char* pc1 = std::strrchr(filename.cstr(), '/');
 #if ANKI_OS_WINDOWS
@@ -49,7 +49,7 @@ void getFilepathFilename(const CString& filename, StringAuto& out)
 	}
 }
 
-void getParentFilepath(const CString& filename, StringAuto& out)
+void getParentFilepath(const CString& filename, StringRaii& out)
 {
 	const Char* pc1 = std::strrchr(filename.cstr(), '/');
 #if ANKI_OS_WINDOWS
@@ -78,7 +78,7 @@ Error removeFile(const CString& filename)
 		ANKI_UTIL_LOGE("Couldn't delete file: %s", filename.cstr());
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

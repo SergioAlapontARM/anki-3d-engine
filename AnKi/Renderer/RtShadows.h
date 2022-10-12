@@ -33,7 +33,7 @@ public:
 
 	void populateRenderGraph(RenderingContext& ctx);
 
-	void getDebugRenderTarget(CString rtName, RenderTargetHandle& handle,
+	void getDebugRenderTarget(CString rtName, Array<RenderTargetHandle, kMaxDebugRenderTargets>& handles,
 							  ShaderProgramPtr& optionalShaderProgram) const override;
 
 	RenderTargetHandle getRt() const
@@ -45,8 +45,8 @@ public:
 	class ShadowLayer
 	{
 	public:
-		U64 m_lightUuid = MAX_U64;
-		U64 m_frameLastUsed = MAX_U64;
+		U64 m_lightUuid = kMaxU64;
+		U64 m_frameLastUsed = kMaxU64;
 	};
 
 	/// @name Render targets
@@ -64,10 +64,10 @@ public:
 	/// @{
 	ShaderProgramResourcePtr m_rayGenProg;
 	ShaderProgramPtr m_rtLibraryGrProg;
-	U32 m_rayGenShaderGroupIdx = MAX_U32;
+	U32 m_rayGenShaderGroupIdx = kMaxU32;
 
 	ShaderProgramResourcePtr m_missProg;
-	U32 m_missShaderGroupIdx = MAX_U32;
+	U32 m_missShaderGroupIdx = kMaxU32;
 
 	ShaderProgramResourcePtr m_denoiseProg;
 	ShaderProgramPtr m_grDenoiseHorizontalProg;
@@ -88,7 +88,7 @@ public:
 
 	ImageResourcePtr m_blueNoiseImage;
 
-	Array<ShadowLayer, MAX_RT_SHADOW_LAYERS> m_shadowLayers;
+	Array<ShadowLayer, kMaxRtShadowLayers> m_shadowLayers;
 
 	U32 m_sbtRecordSize = 256;
 
@@ -112,7 +112,7 @@ public:
 		PtrSize m_sbtOffset;
 		U32 m_hitGroupCount = 0;
 
-		BitSet<MAX_RT_SHADOW_LAYERS, U8> m_layersWithRejectedHistory = {false};
+		BitSet<kMaxRtShadowLayers, U8> m_layersWithRejectedHistory = {false};
 
 		U8 m_atrousPassIdx = 0;
 		U8 m_denoiseOrientation = 0;

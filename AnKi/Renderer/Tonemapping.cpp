@@ -32,7 +32,7 @@ Error Tonemapping::initInternal()
 	ANKI_CHECK(getResourceManager().loadResource("ShaderBinaries/TonemappingAverageLuminance.ankiprogbin", m_prog));
 
 	ShaderProgramResourceVariantInitInfo variantInitInfo(m_prog);
-	variantInitInfo.addConstant("INPUT_TEX_SIZE", UVec2(width, height));
+	variantInitInfo.addConstant("kInputTexSize", UVec2(width, height));
 
 	const ShaderProgramResourceVariant* variant;
 	m_prog->getOrCreateVariant(variantInitInfo, variant);
@@ -41,21 +41,21 @@ Error Tonemapping::initInternal()
 	// Create exposure texture.
 	// WARNING: Use it only as IMAGE and nothing else. It will not be tracked by the rendergraph. No tracking means no
 	// automatic image transitions
-	const TextureUsageBit usage = TextureUsageBit::ALL_IMAGE | TextureUsageBit::ALL_SAMPLED;
+	const TextureUsageBit usage = TextureUsageBit::kAllImage | TextureUsageBit::kAllSampled;
 	const TextureInitInfo texinit =
-		m_r->create2DRenderTargetInitInfo(1, 1, Format::R16G16_SFLOAT, usage, "ExposureAndAvgLum1x1");
+		m_r->create2DRenderTargetInitInfo(1, 1, Format::kR16G16_Sfloat, usage, "ExposureAndAvgLum1x1");
 	ClearValue clearValue;
 	clearValue.m_colorf = {0.5f, 0.5f, 0.5f, 0.5f};
-	m_exposureAndAvgLuminance1x1 = m_r->createAndClearRenderTarget(texinit, TextureUsageBit::ALL_IMAGE, clearValue);
+	m_exposureAndAvgLuminance1x1 = m_r->createAndClearRenderTarget(texinit, TextureUsageBit::kAllImage, clearValue);
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void Tonemapping::importRenderTargets(RenderingContext& ctx)
 {
 	// Just import it. It will not be used in resource tracking
 	m_runCtx.m_exposureLuminanceHandle =
-		ctx.m_renderGraphDescr.importRenderTarget(m_exposureAndAvgLuminance1x1, TextureUsageBit::ALL_IMAGE);
+		ctx.m_renderGraphDescr.importRenderTarget(m_exposureAndAvgLuminance1x1, TextureUsageBit::kAllImage);
 }
 
 void Tonemapping::populateRenderGraph(RenderingContext& ctx)
@@ -80,7 +80,7 @@ void Tonemapping::populateRenderGraph(RenderingContext& ctx)
 
 	TextureSubresourceInfo inputTexSubresource;
 	inputTexSubresource.m_firstMipmap = m_inputTexMip;
-	pass.newDependency({m_r->getDownscaleBlur().getRt(), TextureUsageBit::SAMPLED_COMPUTE, inputTexSubresource});
+	pass.newTextureDependency(m_r->getDownscaleBlur().getRt(), TextureUsageBit::kSampledCompute, inputTexSubresource);
 }
 
 } // end namespace anki

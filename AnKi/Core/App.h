@@ -6,7 +6,6 @@
 #pragma once
 
 #include <AnKi/Core/Common.h>
-#include <AnKi/Util/Allocator.h>
 #include <AnKi/Util/String.h>
 #include <AnKi/Util/Ptr.h>
 #include <AnKi/Ui/UiImmediateModeBuilder.h>
@@ -27,7 +26,7 @@ class ScriptManager;
 class ResourceManager;
 class ResourceFilesystem;
 class StagingGpuMemoryPool;
-class VertexGpuMemoryPool;
+class UnifiedGeometryMemoryPool;
 class UiManager;
 class UiQueueElement;
 class RenderQueue;
@@ -54,24 +53,14 @@ public:
 		return m_cacheDir;
 	}
 
-	AllocAlignedCallback getAllocationCallback() const
-	{
-		return m_allocCb;
-	}
-
-	void* getAllocationCallbackData() const
-	{
-		return m_allocCbData;
-	}
-
 	ThreadHive& getThreadHive()
 	{
 		return *m_threadHive;
 	}
 
-	HeapAllocator<U8>& getAllocator()
+	HeapMemoryPool& getMemoryPool()
 	{
-		return m_heapAlloc;
+		return m_mainPool;
 	}
 
 	Timestamp getGlobalTimestamp() const
@@ -86,7 +75,7 @@ public:
 	virtual Error userMainLoop([[maybe_unused]] Bool& quit, [[maybe_unused]] Second elapsedTime)
 	{
 		// Do nothing
-		return Error::NONE;
+		return Error::kNone;
 	}
 
 	const ConfigSet& getConfig() const
@@ -134,11 +123,6 @@ public:
 		return *m_window;
 	}
 
-	HeapAllocator<U8> getAllocator() const
-	{
-		return m_heapAlloc;
-	}
-
 	void setDisplayDeveloperConsole(Bool display)
 	{
 		m_consoleEnabled = display;
@@ -150,10 +134,7 @@ public:
 	}
 
 private:
-	// Allocation
-	AllocAlignedCallback m_allocCb;
-	void* m_allocCbData;
-	HeapAllocator<U8> m_heapAlloc;
+	HeapMemoryPool m_mainPool;
 
 	// Sybsystems
 	ConfigSet* m_config = nullptr;
@@ -165,7 +146,7 @@ private:
 	ThreadHive* m_threadHive = nullptr;
 	GrManager* m_gr = nullptr;
 	MaliHwCounters* m_maliHwCounters = nullptr;
-	VertexGpuMemoryPool* m_vertexMem = nullptr;
+	UnifiedGeometryMemoryPool* m_unifiedGometryMemPool = nullptr;
 	StagingGpuMemoryPool* m_stagingMem = nullptr;
 	PhysicsWorld* m_physics = nullptr;
 	ResourceFilesystem* m_resourceFs = nullptr;
@@ -197,7 +178,7 @@ private:
 		static void* allocCallback(void* userData, void* ptr, PtrSize size, PtrSize alignment);
 	} m_memStats;
 
-	void initMemoryCallbacks(AllocAlignedCallback allocCb, void* allocCbUserData);
+	void initMemoryCallbacks(AllocAlignedCallback& allocCb, void*& allocCbUserData);
 
 	Error initInternal(AllocAlignedCallback allocCb, void* allocCbUserData);
 
@@ -205,7 +186,7 @@ private:
 	void cleanup();
 
 	/// Inject a new UI element in the render queue for displaying various stuff.
-	void injectUiElements(DynamicArrayAuto<UiQueueElement>& elements, RenderQueue& rqueue);
+	void injectUiElements(DynamicArrayRaii<UiQueueElement>& elements, RenderQueue& rqueue);
 
 	void setSignalHandlers();
 };

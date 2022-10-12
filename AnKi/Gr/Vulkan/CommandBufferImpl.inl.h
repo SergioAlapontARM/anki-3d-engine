@@ -19,13 +19,13 @@ inline void CommandBufferImpl::setStencilCompareMaskInternal(FaceSelectionBit fa
 
 	VkStencilFaceFlags flags = 0;
 
-	if(!!(face & FaceSelectionBit::FRONT) && m_stencilCompareMasks[0] != mask)
+	if(!!(face & FaceSelectionBit::kFront) && m_stencilCompareMasks[0] != mask)
 	{
 		m_stencilCompareMasks[0] = mask;
 		flags = VK_STENCIL_FACE_FRONT_BIT;
 	}
 
-	if(!!(face & FaceSelectionBit::BACK) && m_stencilCompareMasks[1] != mask)
+	if(!!(face & FaceSelectionBit::kBack) && m_stencilCompareMasks[1] != mask)
 	{
 		m_stencilCompareMasks[1] = mask;
 		flags |= VK_STENCIL_FACE_BACK_BIT;
@@ -33,7 +33,7 @@ inline void CommandBufferImpl::setStencilCompareMaskInternal(FaceSelectionBit fa
 
 	if(flags)
 	{
-		ANKI_CMD(vkCmdSetStencilCompareMask(m_handle, flags, mask), ANY_OTHER_COMMAND);
+		vkCmdSetStencilCompareMask(m_handle, flags, mask);
 	}
 }
 
@@ -43,13 +43,13 @@ inline void CommandBufferImpl::setStencilWriteMaskInternal(FaceSelectionBit face
 
 	VkStencilFaceFlags flags = 0;
 
-	if(!!(face & FaceSelectionBit::FRONT) && m_stencilWriteMasks[0] != mask)
+	if(!!(face & FaceSelectionBit::kFront) && m_stencilWriteMasks[0] != mask)
 	{
 		m_stencilWriteMasks[0] = mask;
 		flags = VK_STENCIL_FACE_FRONT_BIT;
 	}
 
-	if(!!(face & FaceSelectionBit::BACK) && m_stencilWriteMasks[1] != mask)
+	if(!!(face & FaceSelectionBit::kBack) && m_stencilWriteMasks[1] != mask)
 	{
 		m_stencilWriteMasks[1] = mask;
 		flags |= VK_STENCIL_FACE_BACK_BIT;
@@ -57,7 +57,7 @@ inline void CommandBufferImpl::setStencilWriteMaskInternal(FaceSelectionBit face
 
 	if(flags)
 	{
-		ANKI_CMD(vkCmdSetStencilWriteMask(m_handle, flags, mask), ANY_OTHER_COMMAND);
+		vkCmdSetStencilWriteMask(m_handle, flags, mask);
 	}
 }
 
@@ -67,13 +67,13 @@ inline void CommandBufferImpl::setStencilReferenceInternal(FaceSelectionBit face
 
 	VkStencilFaceFlags flags = 0;
 
-	if(!!(face & FaceSelectionBit::FRONT) && m_stencilReferenceMasks[0] != ref)
+	if(!!(face & FaceSelectionBit::kFront) && m_stencilReferenceMasks[0] != ref)
 	{
 		m_stencilReferenceMasks[0] = ref;
 		flags = VK_STENCIL_FACE_FRONT_BIT;
 	}
 
-	if(!!(face & FaceSelectionBit::BACK) && m_stencilReferenceMasks[1] != ref)
+	if(!!(face & FaceSelectionBit::kBack) && m_stencilReferenceMasks[1] != ref)
 	{
 		m_stencilWriteMasks[1] = ref;
 		flags |= VK_STENCIL_FACE_BACK_BIT;
@@ -81,7 +81,7 @@ inline void CommandBufferImpl::setStencilReferenceInternal(FaceSelectionBit face
 
 	if(flags)
 	{
-		ANKI_CMD(vkCmdSetStencilReference(m_handle, flags, ref), ANY_OTHER_COMMAND);
+		vkCmdSetStencilReference(m_handle, flags, ref);
 	}
 }
 
@@ -104,193 +104,8 @@ inline void CommandBufferImpl::setImageBarrier(VkPipelineStageFlags srcStage, Vk
 	inf.image = img;
 	inf.subresourceRange = range;
 
-#if ANKI_BATCH_COMMANDS
-	flushBatches(CommandBufferCommandType::SET_BARRIER);
-
-	if(m_imgBarriers.getSize() <= m_imgBarrierCount)
-	{
-		m_imgBarriers.resize(m_alloc, max<U32>(2, m_imgBarrierCount * 2));
-	}
-
-	m_imgBarriers[m_imgBarrierCount++] = inf;
-
-	m_srcStageMask |= srcStage;
-	m_dstStageMask |= dstStage;
-#else
-	ANKI_CMD(vkCmdPipelineBarrier(m_handle, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &inf), ANY_OTHER_COMMAND);
+	vkCmdPipelineBarrier(m_handle, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &inf);
 	ANKI_TRACE_INC_COUNTER(VK_PIPELINE_BARRIERS, 1);
-#endif
-}
-
-inline void CommandBufferImpl::setTextureBarrierRangeInternal(const TexturePtr& tex, TextureUsageBit prevUsage,
-															  TextureUsageBit nextUsage,
-															  const VkImageSubresourceRange& range)
-{
-	const TextureImpl& impl = static_cast<const TextureImpl&>(*tex);
-	ANKI_ASSERT(impl.usageValid(prevUsage));
-	ANKI_ASSERT(impl.usageValid(nextUsage));
-	ANKI_ASSERT(((nextUsage & TextureUsageBit::GENERATE_MIPMAPS) == TextureUsageBit::GENERATE_MIPMAPS
-				 || (nextUsage & TextureUsageBit::GENERATE_MIPMAPS) == TextureUsageBit::NONE)
-				&& "GENERATE_MIPMAPS should be alone");
-
-	VkPipelineStageFlags srcStage;
-	VkAccessFlags srcAccess;
-	VkImageLayout oldLayout;
-	VkPipelineStageFlags dstStage;
-	VkAccessFlags dstAccess;
-	VkImageLayout newLayout;
-	impl.computeBarrierInfo(prevUsage, nextUsage, range.baseMipLevel, srcStage, srcAccess, dstStage, dstAccess);
-	oldLayout = impl.computeLayout(prevUsage, range.baseMipLevel);
-	newLayout = impl.computeLayout(nextUsage, range.baseMipLevel);
-
-	setImageBarrier(srcStage, srcAccess, oldLayout, dstStage, dstAccess, newLayout, impl.m_imageHandle, range);
-
-	m_microCmdb->pushObjectRef(tex);
-}
-
-inline void CommandBufferImpl::setTextureBarrierInternal(const TexturePtr& tex, TextureUsageBit prevUsage,
-														 TextureUsageBit nextUsage,
-														 const TextureSubresourceInfo& subresource_)
-{
-	TextureSubresourceInfo subresource = subresource_;
-	const TextureImpl& impl = static_cast<const TextureImpl&>(*tex);
-
-	// The transition of the non zero mip levels happens inside CommandBufferImpl::generateMipmapsX so limit the
-	// subresource
-	if(nextUsage == TextureUsageBit::GENERATE_MIPMAPS)
-	{
-		ANKI_ASSERT(impl.isSubresourceGoodForMipmapGeneration(subresource));
-
-		subresource.m_firstMipmap = 0;
-		subresource.m_mipmapCount = 1;
-	}
-
-	ANKI_ASSERT(tex->isSubresourceValid(subresource));
-
-	VkImageSubresourceRange range;
-	impl.computeVkImageSubresourceRange(subresource, range);
-	setTextureBarrierRangeInternal(tex, prevUsage, nextUsage, range);
-}
-
-inline void CommandBufferImpl::setTextureSurfaceBarrierInternal(const TexturePtr& tex, TextureUsageBit prevUsage,
-																TextureUsageBit nextUsage,
-																const TextureSurfaceInfo& surf)
-{
-	if(ANKI_UNLIKELY(surf.m_level > 0 && nextUsage == TextureUsageBit::GENERATE_MIPMAPS))
-	{
-		// This transition happens inside CommandBufferImpl::generateMipmapsX. No need to do something
-		return;
-	}
-
-	const TextureImpl& impl = static_cast<const TextureImpl&>(*tex);
-
-	VkImageSubresourceRange range;
-	impl.computeVkImageSubresourceRange(TextureSubresourceInfo(surf, impl.getDepthStencilAspect()), range);
-	setTextureBarrierRangeInternal(tex, prevUsage, nextUsage, range);
-}
-
-inline void CommandBufferImpl::setTextureVolumeBarrierInternal(const TexturePtr& tex, TextureUsageBit prevUsage,
-															   TextureUsageBit nextUsage, const TextureVolumeInfo& vol)
-{
-	if(vol.m_level > 0)
-	{
-		ANKI_ASSERT(!(nextUsage & TextureUsageBit::GENERATE_MIPMAPS)
-					&& "This transition happens inside CommandBufferImpl::generateMipmaps");
-	}
-
-	const TextureImpl& impl = static_cast<const TextureImpl&>(*tex);
-
-	VkImageSubresourceRange range;
-	impl.computeVkImageSubresourceRange(TextureSubresourceInfo(vol, impl.getDepthStencilAspect()), range);
-	setTextureBarrierRangeInternal(tex, prevUsage, nextUsage, range);
-}
-
-inline void CommandBufferImpl::setBufferBarrierInternal(VkPipelineStageFlags srcStage, VkAccessFlags srcAccess,
-														VkPipelineStageFlags dstStage, VkAccessFlags dstAccess,
-														PtrSize offset, PtrSize size, VkBuffer buff)
-{
-	ANKI_ASSERT(buff);
-	commandCommon();
-
-	VkBufferMemoryBarrier b = {};
-	b.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-	b.srcAccessMask = srcAccess;
-	b.dstAccessMask = dstAccess;
-	b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	b.buffer = buff;
-	b.offset = offset;
-	b.size = size;
-
-#if ANKI_BATCH_COMMANDS
-	flushBatches(CommandBufferCommandType::SET_BARRIER);
-
-	if(m_buffBarriers.getSize() <= m_buffBarrierCount)
-	{
-		m_buffBarriers.resize(m_alloc, max<U32>(2, m_buffBarrierCount * 2));
-	}
-
-	m_buffBarriers[m_buffBarrierCount++] = b;
-
-	m_srcStageMask |= srcStage;
-	m_dstStageMask |= dstStage;
-#else
-	ANKI_CMD(vkCmdPipelineBarrier(m_handle, srcStage, dstStage, 0, 0, nullptr, 1, &b, 0, nullptr), ANY_OTHER_COMMAND);
-	ANKI_TRACE_INC_COUNTER(VK_PIPELINE_BARRIERS, 1);
-#endif
-}
-
-inline void CommandBufferImpl::setBufferBarrierInternal(const BufferPtr& buff, BufferUsageBit before,
-														BufferUsageBit after, PtrSize offset, PtrSize size)
-{
-	const BufferImpl& impl = static_cast<const BufferImpl&>(*buff);
-
-	VkPipelineStageFlags srcStage;
-	VkAccessFlags srcAccess;
-	VkPipelineStageFlags dstStage;
-	VkAccessFlags dstAccess;
-	impl.computeBarrierInfo(before, after, srcStage, srcAccess, dstStage, dstAccess);
-
-	setBufferBarrierInternal(srcStage, srcAccess, dstStage, dstAccess, offset, size, impl.getHandle());
-
-	m_microCmdb->pushObjectRef(buff);
-}
-
-inline void
-CommandBufferImpl::setAccelerationStructureBarrierInternal([[maybe_unused]] const AccelerationStructurePtr& as,
-														   AccelerationStructureUsageBit prevUsage,
-														   AccelerationStructureUsageBit nextUsage)
-{
-	commandCommon();
-
-	VkPipelineStageFlags srcStage;
-	VkAccessFlags srcAccess;
-	VkPipelineStageFlags dstStage;
-	VkAccessFlags dstAccess;
-	AccelerationStructureImpl::computeBarrierInfo(prevUsage, nextUsage, srcStage, srcAccess, dstStage, dstAccess);
-
-#if ANKI_BATCH_COMMANDS
-	flushBatches(CommandBufferCommandType::SET_BARRIER);
-
-	VkMemoryBarrier memBarrier = {};
-	memBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-	memBarrier.srcAccessMask = srcAccess;
-	memBarrier.dstAccessMask = dstAccess;
-
-	if(m_memBarriers.getSize() <= m_memBarrierCount)
-	{
-		m_memBarriers.resize(m_alloc, max<U32>(2, m_memBarrierCount * 2));
-	}
-
-	m_memBarriers[m_memBarrierCount++] = memBarrier;
-
-	m_srcStageMask |= srcStage;
-	m_dstStageMask |= dstStage;
-#else
-	ANKI_ASSERT(!"TODO");
-#endif
-
-	// No need to hold reference since noone touches the AS
 }
 
 inline void CommandBufferImpl::drawArraysInternal(PrimitiveTopology topology, U32 count, U32 instanceCount, U32 first,
@@ -298,7 +113,7 @@ inline void CommandBufferImpl::drawArraysInternal(PrimitiveTopology topology, U3
 {
 	m_state.setPrimitiveTopology(topology);
 	drawcallCommon();
-	ANKI_CMD(vkCmdDraw(m_handle, count, instanceCount, first, baseInstance), ANY_OTHER_COMMAND);
+	vkCmdDraw(m_handle, count, instanceCount, first, baseInstance);
 }
 
 inline void CommandBufferImpl::drawElementsInternal(PrimitiveTopology topology, U32 count, U32 instanceCount,
@@ -306,7 +121,7 @@ inline void CommandBufferImpl::drawElementsInternal(PrimitiveTopology topology, 
 {
 	m_state.setPrimitiveTopology(topology);
 	drawcallCommon();
-	ANKI_CMD(vkCmdDrawIndexed(m_handle, count, instanceCount, firstIndex, baseVertex, baseInstance), ANY_OTHER_COMMAND);
+	vkCmdDrawIndexed(m_handle, count, instanceCount, firstIndex, baseVertex, baseInstance);
 }
 
 inline void CommandBufferImpl::drawArraysIndirectInternal(PrimitiveTopology topology, U32 drawCount, PtrSize offset,
@@ -315,12 +130,11 @@ inline void CommandBufferImpl::drawArraysIndirectInternal(PrimitiveTopology topo
 	m_state.setPrimitiveTopology(topology);
 	drawcallCommon();
 	const BufferImpl& impl = static_cast<const BufferImpl&>(*buff);
-	ANKI_ASSERT(impl.usageValid(BufferUsageBit::INDIRECT_DRAW));
+	ANKI_ASSERT(impl.usageValid(BufferUsageBit::kIndirectDraw));
 	ANKI_ASSERT((offset % 4) == 0);
 	ANKI_ASSERT((offset + sizeof(DrawArraysIndirectInfo) * drawCount) <= impl.getSize());
 
-	ANKI_CMD(vkCmdDrawIndirect(m_handle, impl.getHandle(), offset, drawCount, sizeof(DrawArraysIndirectInfo)),
-			 ANY_OTHER_COMMAND);
+	vkCmdDrawIndirect(m_handle, impl.getHandle(), offset, drawCount, sizeof(DrawArraysIndirectInfo));
 }
 
 inline void CommandBufferImpl::drawElementsIndirectInternal(PrimitiveTopology topology, U32 drawCount, PtrSize offset,
@@ -329,12 +143,11 @@ inline void CommandBufferImpl::drawElementsIndirectInternal(PrimitiveTopology to
 	m_state.setPrimitiveTopology(topology);
 	drawcallCommon();
 	const BufferImpl& impl = static_cast<const BufferImpl&>(*buff);
-	ANKI_ASSERT(impl.usageValid(BufferUsageBit::INDIRECT_DRAW));
+	ANKI_ASSERT(impl.usageValid(BufferUsageBit::kIndirectDraw));
 	ANKI_ASSERT((offset % 4) == 0);
 	ANKI_ASSERT((offset + sizeof(DrawElementsIndirectInfo) * drawCount) <= impl.getSize());
 
-	ANKI_CMD(vkCmdDrawIndexedIndirect(m_handle, impl.getHandle(), offset, drawCount, sizeof(DrawElementsIndirectInfo)),
-			 ANY_OTHER_COMMAND);
+	vkCmdDrawIndexedIndirect(m_handle, impl.getHandle(), offset, drawCount, sizeof(DrawElementsIndirectInfo));
 }
 
 inline void CommandBufferImpl::dispatchComputeInternal(U32 groupCountX, U32 groupCountY, U32 groupCountZ)
@@ -345,20 +158,18 @@ inline void CommandBufferImpl::dispatchComputeInternal(U32 groupCountX, U32 grou
 
 	commandCommon();
 
-	flushBatches(CommandBufferCommandType::ANY_OTHER_COMMAND); // Do that before setting the markers
-
 	getGrManagerImpl().beginMarker(m_handle, m_computeProg->getName(), Vec3(1.0f, 1.0f, 0.0f));
 
 	// Bind descriptors
-	for(U32 i = 0; i < MAX_DESCRIPTOR_SETS; ++i)
+	for(U32 i = 0; i < kMaxDescriptorSets; ++i)
 	{
 		if(m_computeProg->getReflectionInfo().m_descriptorSetMask.get(i))
 		{
 			DescriptorSet dset;
 			Bool dirty;
-			Array<PtrSize, MAX_BINDINGS_PER_DESCRIPTOR_SET> dynamicOffsetsPtrSize;
+			Array<PtrSize, kMaxBindingsPerDescriptorSet> dynamicOffsetsPtrSize;
 			U32 dynamicOffsetCount;
-			if(getGrManagerImpl().getDescriptorSetFactory().newDescriptorSet(m_alloc, m_dsetState[i], dset, dirty,
+			if(getGrManagerImpl().getDescriptorSetFactory().newDescriptorSet(*m_pool, m_dsetState[i], dset, dirty,
 																			 dynamicOffsetsPtrSize, dynamicOffsetCount))
 			{
 				ANKI_VK_LOGF("Cannot recover");
@@ -367,7 +178,7 @@ inline void CommandBufferImpl::dispatchComputeInternal(U32 groupCountX, U32 grou
 			if(dirty)
 			{
 				// Vulkan should have had the dynamic offsets as VkDeviceSize and not U32. Workaround that.
-				Array<U32, MAX_BINDINGS_PER_DESCRIPTOR_SET> dynamicOffsets;
+				Array<U32, kMaxBindingsPerDescriptorSet> dynamicOffsets;
 				for(U32 i = 0; i < dynamicOffsetCount; ++i)
 				{
 					dynamicOffsets[i] = U32(dynamicOffsetsPtrSize[i]);
@@ -375,10 +186,9 @@ inline void CommandBufferImpl::dispatchComputeInternal(U32 groupCountX, U32 grou
 
 				VkDescriptorSet dsHandle = dset.getHandle();
 
-				ANKI_CMD(vkCmdBindDescriptorSets(m_handle, VK_PIPELINE_BIND_POINT_COMPUTE,
-												 m_computeProg->getPipelineLayout().getHandle(), i, 1, &dsHandle,
-												 dynamicOffsetCount, &dynamicOffsets[0]),
-						 ANY_OTHER_COMMAND);
+				vkCmdBindDescriptorSets(m_handle, VK_PIPELINE_BIND_POINT_COMPUTE,
+										m_computeProg->getPipelineLayout().getHandle(), i, 1, &dsHandle,
+										dynamicOffsetCount, &dynamicOffsets[0]);
 			}
 		}
 	}
@@ -409,20 +219,18 @@ inline void CommandBufferImpl::traceRaysInternal(const BufferPtr& sbtBuffer, Ptr
 
 	commandCommon();
 
-	flushBatches(CommandBufferCommandType::ANY_OTHER_COMMAND); // Do that before setting the markers
-
 	getGrManagerImpl().beginMarker(m_handle, m_rtProg->getName(), Vec3(0.0f, 0.0f, 1.0f));
 
 	// Bind descriptors
-	for(U32 i = 0; i < MAX_DESCRIPTOR_SETS; ++i)
+	for(U32 i = 0; i < kMaxDescriptorSets; ++i)
 	{
 		if(sprog.getReflectionInfo().m_descriptorSetMask.get(i))
 		{
 			DescriptorSet dset;
 			Bool dirty;
-			Array<PtrSize, MAX_BINDINGS_PER_DESCRIPTOR_SET> dynamicOffsetsPtrSize;
+			Array<PtrSize, kMaxBindingsPerDescriptorSet> dynamicOffsetsPtrSize;
 			U32 dynamicOffsetCount;
-			if(getGrManagerImpl().getDescriptorSetFactory().newDescriptorSet(m_alloc, m_dsetState[i], dset, dirty,
+			if(getGrManagerImpl().getDescriptorSetFactory().newDescriptorSet(*m_pool, m_dsetState[i], dset, dirty,
 																			 dynamicOffsetsPtrSize, dynamicOffsetCount))
 			{
 				ANKI_VK_LOGF("Cannot recover");
@@ -431,7 +239,7 @@ inline void CommandBufferImpl::traceRaysInternal(const BufferPtr& sbtBuffer, Ptr
 			if(dirty)
 			{
 				// Vulkan should have had the dynamic offsets as VkDeviceSize and not U32. Workaround that.
-				Array<U32, MAX_BINDINGS_PER_DESCRIPTOR_SET> dynamicOffsets;
+				Array<U32, kMaxBindingsPerDescriptorSet> dynamicOffsets;
 				for(U32 i = 0; i < dynamicOffsetCount; ++i)
 				{
 					dynamicOffsets[i] = U32(dynamicOffsetsPtrSize[i]);
@@ -439,10 +247,9 @@ inline void CommandBufferImpl::traceRaysInternal(const BufferPtr& sbtBuffer, Ptr
 
 				VkDescriptorSet dsHandle = dset.getHandle();
 
-				ANKI_CMD(vkCmdBindDescriptorSets(m_handle, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
-												 sprog.getPipelineLayout().getHandle(), i, 1, &dsHandle,
-												 dynamicOffsetCount, &dynamicOffsets[0]),
-						 ANY_OTHER_COMMAND);
+				vkCmdBindDescriptorSets(m_handle, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
+										sprog.getPipelineLayout().getHandle(), i, 1, &dsHandle, dynamicOffsetCount,
+										&dynamicOffsets[0]);
 			}
 		}
 	}
@@ -474,26 +281,22 @@ inline void CommandBufferImpl::traceRaysInternal(const BufferPtr& sbtBuffer, Ptr
 	getGrManagerImpl().endMarker(m_handle);
 }
 
-inline void CommandBufferImpl::resetOcclusionQueryInternal(const OcclusionQueryPtr& query)
+inline void CommandBufferImpl::resetOcclusionQueriesInternal(ConstWeakArray<OcclusionQuery*> queries)
 {
+	ANKI_ASSERT(queries.getSize() > 0);
+
 	commandCommon();
 
-	VkQueryPool handle = static_cast<const OcclusionQueryImpl&>(*query).m_handle.getQueryPool();
-	U32 idx = static_cast<const OcclusionQueryImpl&>(*query).m_handle.getQueryIndex();
-	ANKI_ASSERT(handle);
+	for(U32 i = 0; i < queries.getSize(); ++i)
+	{
+		OcclusionQuery* query = queries[i];
+		ANKI_ASSERT(query);
+		const VkQueryPool poolHandle = static_cast<const OcclusionQueryImpl&>(*query).m_handle.getQueryPool();
+		const U32 idx = static_cast<const OcclusionQueryImpl&>(*query).m_handle.getQueryIndex();
 
-#if ANKI_BATCH_COMMANDS
-	flushBatches(CommandBufferCommandType::RESET_QUERY);
-
-	QueryResetAtom atom;
-	atom.m_pool = handle;
-	atom.m_queryIdx = idx;
-	m_queryResetAtoms.emplaceBack(m_alloc, atom);
-#else
-	ANKI_CMD(vkCmdResetQueryPool(m_handle, handle, idx, 1), ANY_OTHER_COMMAND);
-#endif
-
-	m_microCmdb->pushObjectRef(query);
+		vkCmdResetQueryPool(m_handle, poolHandle, idx, 1);
+		m_microCmdb->pushObjectRef(query);
+	}
 }
 
 inline void CommandBufferImpl::beginOcclusionQueryInternal(const OcclusionQueryPtr& query)
@@ -504,7 +307,7 @@ inline void CommandBufferImpl::beginOcclusionQueryInternal(const OcclusionQueryP
 	const U32 idx = static_cast<const OcclusionQueryImpl&>(*query).m_handle.getQueryIndex();
 	ANKI_ASSERT(handle);
 
-	ANKI_CMD(vkCmdBeginQuery(m_handle, handle, idx, 0), ANY_OTHER_COMMAND);
+	vkCmdBeginQuery(m_handle, handle, idx, 0);
 
 	m_microCmdb->pushObjectRef(query);
 }
@@ -517,31 +320,27 @@ inline void CommandBufferImpl::endOcclusionQueryInternal(const OcclusionQueryPtr
 	const U32 idx = static_cast<const OcclusionQueryImpl&>(*query).m_handle.getQueryIndex();
 	ANKI_ASSERT(handle);
 
-	ANKI_CMD(vkCmdEndQuery(m_handle, handle, idx), ANY_OTHER_COMMAND);
+	vkCmdEndQuery(m_handle, handle, idx);
 
 	m_microCmdb->pushObjectRef(query);
 }
 
-inline void CommandBufferImpl::resetTimestampQueryInternal(const TimestampQueryPtr& query)
+inline void CommandBufferImpl::resetTimestampQueriesInternal(ConstWeakArray<TimestampQuery*> queries)
 {
+	ANKI_ASSERT(queries.getSize() > 0);
+
 	commandCommon();
 
-	const VkQueryPool handle = static_cast<const TimestampQueryImpl&>(*query).m_handle.getQueryPool();
-	const U32 idx = static_cast<const TimestampQueryImpl&>(*query).m_handle.getQueryIndex();
-	ANKI_ASSERT(handle);
+	for(U32 i = 0; i < queries.getSize(); ++i)
+	{
+		TimestampQuery* query = queries[i];
+		ANKI_ASSERT(query);
+		const VkQueryPool poolHandle = static_cast<const TimestampQueryImpl&>(*query).m_handle.getQueryPool();
+		const U32 idx = static_cast<const TimestampQueryImpl&>(*query).m_handle.getQueryIndex();
 
-#if ANKI_BATCH_COMMANDS
-	flushBatches(CommandBufferCommandType::RESET_QUERY);
-
-	QueryResetAtom atom;
-	atom.m_pool = handle;
-	atom.m_queryIdx = idx;
-	m_queryResetAtoms.emplaceBack(m_alloc, atom);
-#else
-	ANKI_CMD(vkCmdResetQueryPool(m_handle, handle, idx, 1), ANY_OTHER_COMMAND);
-#endif
-
-	m_microCmdb->pushObjectRef(query);
+		vkCmdResetQueryPool(m_handle, poolHandle, idx, 1);
+		m_microCmdb->pushObjectRef(query);
+	}
 }
 
 inline void CommandBufferImpl::writeTimestampInternal(const TimestampQueryPtr& query)
@@ -551,7 +350,7 @@ inline void CommandBufferImpl::writeTimestampInternal(const TimestampQueryPtr& q
 	const VkQueryPool handle = static_cast<const TimestampQueryImpl&>(*query).m_handle.getQueryPool();
 	const U32 idx = static_cast<const TimestampQueryImpl&>(*query).m_handle.getQueryIndex();
 
-	ANKI_CMD(vkCmdWriteTimestamp(m_handle, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, handle, idx), ANY_OTHER_COMMAND);
+	vkCmdWriteTimestamp(m_handle, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, handle, idx);
 
 	m_microCmdb->pushObjectRef(query);
 }
@@ -570,9 +369,7 @@ inline void CommandBufferImpl::clearTextureViewInternal(const TextureViewPtr& te
 	if(!view.getSubresource().m_depthStencilAspect)
 	{
 		VkImageSubresourceRange vkRange = view.getVkImageSubresourceRange();
-		ANKI_CMD(vkCmdClearColorImage(m_handle, tex.m_imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vclear, 1,
-									  &vkRange),
-				 ANY_OTHER_COMMAND);
+		vkCmdClearColorImage(m_handle, tex.m_imageHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &vclear, 1, &vkRange);
 	}
 	else
 	{
@@ -582,14 +379,13 @@ inline void CommandBufferImpl::clearTextureViewInternal(const TextureViewPtr& te
 	m_microCmdb->pushObjectRef(texView);
 }
 
-inline void CommandBufferImpl::pushSecondLevelCommandBufferInternal(const CommandBufferPtr& cmdb)
+inline void CommandBufferImpl::pushSecondLevelCommandBuffersInternal(ConstWeakArray<CommandBuffer*> cmdbs)
 {
+	ANKI_ASSERT(cmdbs.getSize() > 0);
 	commandCommon();
 	ANKI_ASSERT(insideRenderPass());
 	ANKI_ASSERT(m_subpassContents == VK_SUBPASS_CONTENTS_MAX_ENUM
 				|| m_subpassContents == VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
-
-	ANKI_ASSERT(static_cast<const CommandBufferImpl&>(*cmdb).m_finalized);
 
 	m_subpassContents = VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS;
 
@@ -598,22 +394,17 @@ inline void CommandBufferImpl::pushSecondLevelCommandBufferInternal(const Comman
 		beginRenderPassInternal();
 	}
 
-#if ANKI_BATCH_COMMANDS
-	flushBatches(CommandBufferCommandType::PUSH_SECOND_LEVEL);
-
-	if(m_secondLevelAtoms.getSize() <= m_secondLevelAtomCount)
+	DynamicArrayRaii<VkCommandBuffer> handles(m_pool, cmdbs.getSize());
+	for(U32 i = 0; i < cmdbs.getSize(); ++i)
 	{
-		m_secondLevelAtoms.resize(m_alloc, max<U32>(8, m_secondLevelAtomCount * 2));
+		ANKI_ASSERT(static_cast<const CommandBufferImpl&>(*cmdbs[i]).m_finalized);
+		handles[i] = static_cast<const CommandBufferImpl&>(*cmdbs[i]).m_handle;
+		m_microCmdb->pushObjectRef(cmdbs[i]);
 	}
 
-	m_secondLevelAtoms[m_secondLevelAtomCount++] = static_cast<const CommandBufferImpl&>(*cmdb).m_handle;
-#else
-	ANKI_CMD(vkCmdExecuteCommands(m_handle, 1, &static_cast<const CommandBufferImpl&>(*cmdb).m_handle),
-			 ANY_OTHER_COMMAND);
-#endif
+	vkCmdExecuteCommands(m_handle, handles.getSize(), handles.getBegin());
 
 	++m_rpCommandCount;
-	m_microCmdb->pushObjectRef(cmdb);
 }
 
 inline void CommandBufferImpl::drawcallCommon()
@@ -642,19 +433,19 @@ inline void CommandBufferImpl::drawcallCommon()
 
 	if(stateDirty)
 	{
-		ANKI_CMD(vkCmdBindPipeline(m_handle, VK_PIPELINE_BIND_POINT_GRAPHICS, ppline.getHandle()), ANY_OTHER_COMMAND);
+		vkCmdBindPipeline(m_handle, VK_PIPELINE_BIND_POINT_GRAPHICS, ppline.getHandle());
 	}
 
 	// Bind dsets
-	for(U32 i = 0; i < MAX_DESCRIPTOR_SETS; ++i)
+	for(U32 i = 0; i < kMaxDescriptorSets; ++i)
 	{
 		if(m_graphicsProg->getReflectionInfo().m_descriptorSetMask.get(i))
 		{
 			DescriptorSet dset;
 			Bool dirty;
-			Array<PtrSize, MAX_BINDINGS_PER_DESCRIPTOR_SET> dynamicOffsetsPtrSize;
+			Array<PtrSize, kMaxBindingsPerDescriptorSet> dynamicOffsetsPtrSize;
 			U32 dynamicOffsetCount;
-			if(getGrManagerImpl().getDescriptorSetFactory().newDescriptorSet(m_alloc, m_dsetState[i], dset, dirty,
+			if(getGrManagerImpl().getDescriptorSetFactory().newDescriptorSet(*m_pool, m_dsetState[i], dset, dirty,
 																			 dynamicOffsetsPtrSize, dynamicOffsetCount))
 			{
 				ANKI_VK_LOGF("Cannot recover");
@@ -663,7 +454,7 @@ inline void CommandBufferImpl::drawcallCommon()
 			if(dirty)
 			{
 				// Vulkan should have had the dynamic offsets as VkDeviceSize and not U32. Workaround that.
-				Array<U32, MAX_BINDINGS_PER_DESCRIPTOR_SET> dynamicOffsets;
+				Array<U32, kMaxBindingsPerDescriptorSet> dynamicOffsets;
 				for(U32 i = 0; i < dynamicOffsetCount; ++i)
 				{
 					dynamicOffsets[i] = U32(dynamicOffsetsPtrSize[i]);
@@ -671,10 +462,9 @@ inline void CommandBufferImpl::drawcallCommon()
 
 				VkDescriptorSet dsHandle = dset.getHandle();
 
-				ANKI_CMD(vkCmdBindDescriptorSets(m_handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
-												 m_graphicsProg->getPipelineLayout().getHandle(), i, 1, &dsHandle,
-												 dynamicOffsetCount, &dynamicOffsets[0]),
-						 ANY_OTHER_COMMAND);
+				vkCmdBindDescriptorSets(m_handle, VK_PIPELINE_BIND_POINT_GRAPHICS,
+										m_graphicsProg->getPipelineLayout().getHandle(), i, 1, &dsHandle,
+										dynamicOffsetCount, &dynamicOffsets[0]);
 			}
 		}
 	}
@@ -692,7 +482,7 @@ inline void CommandBufferImpl::drawcallCommon()
 		// Additional optimization
 		if(memcmp(&vp, &m_lastViewport, sizeof(vp)) != 0)
 		{
-			ANKI_CMD(vkCmdSetViewport(m_handle, 0, 1, &vp), ANY_OTHER_COMMAND);
+			vkCmdSetViewport(m_handle, 0, 1, &vp);
 			m_lastViewport = vp;
 		}
 
@@ -712,7 +502,7 @@ inline void CommandBufferImpl::drawcallCommon()
 		// Additional optimization
 		if(memcmp(&scissor, &m_lastScissor, sizeof(scissor)) != 0)
 		{
-			ANKI_CMD(vkCmdSetScissor(m_handle, 0, 1, &scissor), ANY_OTHER_COMMAND);
+			vkCmdSetScissor(m_handle, 0, 1, &scissor);
 			m_lastScissor = scissor;
 		}
 
@@ -733,8 +523,8 @@ inline void CommandBufferImpl::drawcallCommon()
 
 	// Some checks
 #if ANKI_ENABLE_ASSERTIONS
-	if(m_state.getPrimitiveTopology() == PrimitiveTopology::LINES
-	   || m_state.getPrimitiveTopology() == PrimitiveTopology::LINE_STRIP)
+	if(m_state.getPrimitiveTopology() == PrimitiveTopology::kLines
+	   || m_state.getPrimitiveTopology() == PrimitiveTopology::kLineStip)
 	{
 		ANKI_ASSERT(m_lineWidthSet == true);
 	}
@@ -743,108 +533,51 @@ inline void CommandBufferImpl::drawcallCommon()
 	ANKI_TRACE_INC_COUNTER(GR_DRAWCALLS, 1);
 }
 
-inline void CommandBufferImpl::commandCommon()
-{
-	ANKI_ASSERT(!m_finalized);
-
-#if ANKI_EXTRA_CHECKS
-	++m_commandCount;
-#endif
-
-	m_empty = false;
-
-	if(ANKI_UNLIKELY(!m_beganRecording))
-	{
-		beginRecording();
-		m_beganRecording = true;
-	}
-
-	ANKI_ASSERT(Thread::getCurrentThreadId() == m_tid
-				&& "Commands must be recorder and flushed by the thread this command buffer was created");
-
-	ANKI_ASSERT(m_handle);
-}
-
-inline void CommandBufferImpl::flushBatches(CommandBufferCommandType type)
-{
-	if(type != m_lastCmdType)
-	{
-		switch(m_lastCmdType)
-		{
-		case CommandBufferCommandType::SET_BARRIER:
-			flushBarriers();
-			break;
-		case CommandBufferCommandType::RESET_QUERY:
-			flushQueryResets();
-			break;
-		case CommandBufferCommandType::WRITE_QUERY_RESULT:
-			flushWriteQueryResults();
-			break;
-		case CommandBufferCommandType::PUSH_SECOND_LEVEL:
-			ANKI_ASSERT(m_secondLevelAtomCount > 0);
-			vkCmdExecuteCommands(m_handle, m_secondLevelAtomCount, &m_secondLevelAtoms[0]);
-			m_secondLevelAtomCount = 0;
-			break;
-		case CommandBufferCommandType::ANY_OTHER_COMMAND:
-			break;
-		default:
-			ANKI_ASSERT(0);
-		}
-
-		m_lastCmdType = type;
-	}
-}
-
 inline void CommandBufferImpl::fillBufferInternal(const BufferPtr& buff, PtrSize offset, PtrSize size, U32 value)
 {
 	commandCommon();
 	ANKI_ASSERT(!insideRenderPass());
 	const BufferImpl& impl = static_cast<const BufferImpl&>(*buff);
-	ANKI_ASSERT(impl.usageValid(BufferUsageBit::TRANSFER_DESTINATION));
+	ANKI_ASSERT(impl.usageValid(BufferUsageBit::kTransferDestination));
 
 	ANKI_ASSERT(offset < impl.getSize());
 	ANKI_ASSERT((offset % 4) == 0 && "Should be multiple of 4");
 
-	size = (size == MAX_PTR_SIZE) ? (impl.getActualSize() - offset) : size;
+	size = (size == kMaxPtrSize) ? (impl.getActualSize() - offset) : size;
 	alignRoundUp(4, size); // Needs to be multiple of 4
 	ANKI_ASSERT(offset + size <= impl.getActualSize());
 	ANKI_ASSERT((size % 4) == 0 && "Should be multiple of 4");
 
-	ANKI_CMD(vkCmdFillBuffer(m_handle, impl.getHandle(), offset, size, value), ANY_OTHER_COMMAND);
+	vkCmdFillBuffer(m_handle, impl.getHandle(), offset, size, value);
 
 	m_microCmdb->pushObjectRef(buff);
 }
 
-inline void CommandBufferImpl::writeOcclusionQueryResultToBufferInternal(const OcclusionQueryPtr& query, PtrSize offset,
-																		 const BufferPtr& buff)
+inline void CommandBufferImpl::writeOcclusionQueriesResultToBufferInternal(ConstWeakArray<OcclusionQuery*> queries,
+																		   PtrSize offset, const BufferPtr& buff)
 {
+	ANKI_ASSERT(queries.getSize() > 0);
 	commandCommon();
 	ANKI_ASSERT(!insideRenderPass());
 
 	const BufferImpl& impl = static_cast<const BufferImpl&>(*buff);
-	ANKI_ASSERT(impl.usageValid(BufferUsageBit::TRANSFER_DESTINATION));
-	ANKI_ASSERT((offset % 4) == 0);
-	ANKI_ASSERT((offset + sizeof(U32)) <= impl.getSize());
+	ANKI_ASSERT(impl.usageValid(BufferUsageBit::kTransferDestination));
 
-	const OcclusionQueryImpl& q = static_cast<const OcclusionQueryImpl&>(*query);
+	for(U32 i = 0; i < queries.getSize(); ++i)
+	{
+		ANKI_ASSERT(queries[i]);
+		ANKI_ASSERT((offset % 4) == 0);
+		ANKI_ASSERT((offset + sizeof(U32)) <= impl.getSize());
 
-#if ANKI_BATCH_COMMANDS
-	flushBatches(CommandBufferCommandType::WRITE_QUERY_RESULT);
+		OcclusionQueryImpl* q = static_cast<OcclusionQueryImpl*>(queries[i]);
 
-	WriteQueryAtom atom;
-	atom.m_pool = q.m_handle.getQueryPool();
-	atom.m_queryIdx = q.m_handle.getQueryIndex();
-	atom.m_buffer = impl.getHandle();
-	atom.m_offset = offset;
+		vkCmdCopyQueryPoolResults(m_handle, q->m_handle.getQueryPool(), q->m_handle.getQueryIndex(), 1,
+								  impl.getHandle(), offset, sizeof(U32), VK_QUERY_RESULT_PARTIAL_BIT);
 
-	m_writeQueryAtoms.emplaceBack(m_alloc, atom);
-#else
-	ANKI_CMD(vkCmdCopyQueryPoolResults(m_handle, q.m_handle.m_pool, q.m_handle.m_queryIndex, 1, impl.getHandle(),
-									   offset, sizeof(U32), VK_QUERY_RESULT_PARTIAL_BIT),
-			 ANY_OTHER_COMMAND);
-#endif
+		offset += sizeof(U32);
+		m_microCmdb->pushObjectRef(q);
+	}
 
-	m_microCmdb->pushObjectRef(query);
 	m_microCmdb->pushObjectRef(buff);
 }
 
@@ -861,30 +594,27 @@ inline void CommandBufferImpl::bindShaderProgramInternal(const ShaderProgramPtr&
 		m_rtProg = nullptr; // See above
 		m_state.bindShaderProgram(&impl);
 	}
-	else if(!!(impl.getStages() & ShaderTypeBit::COMPUTE))
+	else if(!!(impl.getStages() & ShaderTypeBit::kCompute))
 	{
 		m_computeProg = &impl;
 		m_graphicsProg = nullptr; // See comment in the if()
 		m_rtProg = nullptr; // See above
 
 		// Bind the pipeline now
-		ANKI_CMD(vkCmdBindPipeline(m_handle, VK_PIPELINE_BIND_POINT_COMPUTE, impl.getComputePipelineHandle()),
-				 ANY_OTHER_COMMAND);
+		vkCmdBindPipeline(m_handle, VK_PIPELINE_BIND_POINT_COMPUTE, impl.getComputePipelineHandle());
 	}
 	else
 	{
-		ANKI_ASSERT(!!(impl.getStages() & ShaderTypeBit::ALL_RAY_TRACING));
+		ANKI_ASSERT(!!(impl.getStages() & ShaderTypeBit::kAllRayTracing));
 		m_computeProg = nullptr;
 		m_graphicsProg = nullptr;
 		m_rtProg = &impl;
 
 		// Bind now
-		ANKI_CMD(
-			vkCmdBindPipeline(m_handle, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, impl.getRayTracingPipelineHandle()),
-			ANY_OTHER_COMMAND);
+		vkCmdBindPipeline(m_handle, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, impl.getRayTracingPipelineHandle());
 	}
 
-	for(U32 i = 0; i < MAX_DESCRIPTOR_SETS; ++i)
+	for(U32 i = 0; i < kMaxDescriptorSets; ++i)
 	{
 		if(impl.getReflectionInfo().m_descriptorSetMask.get(i))
 		{
@@ -908,8 +638,8 @@ inline void CommandBufferImpl::bindShaderProgramInternal(const ShaderProgramPtr&
 inline void CommandBufferImpl::copyBufferToBufferInternal(const BufferPtr& src, PtrSize srcOffset, const BufferPtr& dst,
 														  PtrSize dstOffset, PtrSize range)
 {
-	ANKI_ASSERT(static_cast<const BufferImpl&>(*src).usageValid(BufferUsageBit::TRANSFER_SOURCE));
-	ANKI_ASSERT(static_cast<const BufferImpl&>(*dst).usageValid(BufferUsageBit::TRANSFER_DESTINATION));
+	ANKI_ASSERT(static_cast<const BufferImpl&>(*src).usageValid(BufferUsageBit::kTransferSource));
+	ANKI_ASSERT(static_cast<const BufferImpl&>(*dst).usageValid(BufferUsageBit::kTransferDestination));
 	ANKI_ASSERT(srcOffset + range <= src->getSize());
 	ANKI_ASSERT(dstOffset + range <= dst->getSize());
 
@@ -920,9 +650,8 @@ inline void CommandBufferImpl::copyBufferToBufferInternal(const BufferPtr& src, 
 	region.dstOffset = dstOffset;
 	region.size = range;
 
-	ANKI_CMD(vkCmdCopyBuffer(m_handle, static_cast<const BufferImpl&>(*src).getHandle(),
-							 static_cast<const BufferImpl&>(*dst).getHandle(), 1, &region),
-			 ANY_OTHER_COMMAND);
+	vkCmdCopyBuffer(m_handle, static_cast<const BufferImpl&>(*src).getHandle(),
+					static_cast<const BufferImpl&>(*dst).getHandle(), 1, &region);
 
 	m_microCmdb->pushObjectRef(src);
 	m_microCmdb->pushObjectRef(dst);
@@ -942,8 +671,7 @@ inline void CommandBufferImpl::setPushConstantsInternal(const void* data, U32 da
 
 	commandCommon();
 
-	ANKI_CMD(vkCmdPushConstants(m_handle, prog.getPipelineLayout().getHandle(), VK_SHADER_STAGE_ALL, 0, dataSize, data),
-			 ANY_OTHER_COMMAND);
+	vkCmdPushConstants(m_handle, prog.getPipelineLayout().getHandle(), VK_SHADER_STAGE_ALL, 0, dataSize, data);
 
 #if ANKI_EXTRA_CHECKS
 	m_setPushConstantsSize = dataSize;
@@ -954,7 +682,7 @@ inline void CommandBufferImpl::setRasterizationOrderInternal(RasterizationOrder 
 {
 	commandCommon();
 
-	if(!!(getGrManagerImpl().getExtensions() & VulkanExtensions::AMD_RASTERIZATION_ORDER))
+	if(!!(getGrManagerImpl().getExtensions() & VulkanExtensions::kAMD_rasterization_order))
 	{
 		m_state.setRasterizationOrder(order);
 	}
@@ -973,7 +701,7 @@ inline void CommandBufferImpl::setLineWidthInternal(F32 width)
 inline void CommandBufferImpl::setVrsRateInternal(VrsRate rate)
 {
 	ANKI_ASSERT(getGrManagerImpl().getDeviceCapabilities().m_vrs);
-	ANKI_ASSERT(rate < VrsRate::COUNT);
+	ANKI_ASSERT(rate < VrsRate::kCount);
 
 	commandCommon();
 

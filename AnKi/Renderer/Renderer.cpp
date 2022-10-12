@@ -57,7 +57,7 @@ static Vec2 generateJitter(U32 frame)
 	F32 fraction = invBase;
 	while(index > 0)
 	{
-		result.x() += (index % baseX) * fraction;
+		result.x() += F32(index % baseX) * fraction;
 		index /= baseX;
 		fraction *= invBase;
 	}
@@ -68,7 +68,7 @@ static Vec2 generateJitter(U32 frame)
 	fraction = invBase;
 	while(index > 0)
 	{
-		result.y() += (index % baseY) * fraction;
+		result.y() += F32(index % baseY) * fraction;
 		index /= baseY;
 		fraction *= invBase;
 	}
@@ -87,14 +87,14 @@ Renderer::~Renderer()
 {
 	for(DebugRtInfo& info : m_debugRts)
 	{
-		info.m_rtName.destroy(getAllocator());
+		info.m_rtName.destroy(getMemoryPool());
 	}
-	m_debugRts.destroy(getAllocator());
-	m_currentDebugRtName.destroy(getAllocator());
+	m_debugRts.destroy(getMemoryPool());
+	m_currentDebugRtName.destroy(getMemoryPool());
 }
 
 Error Renderer::init(ThreadHive* hive, ResourceManager* resources, GrManager* gl, StagingGpuMemoryPool* stagingMem,
-					 UiManager* ui, HeapAllocator<U8> alloc, ConfigSet* config, Timestamp* globTimestamp,
+					 UiManager* ui, HeapMemoryPool* pool, ConfigSet* config, Timestamp* globTimestamp,
 					 UVec2 swapchainSize)
 {
 	ANKI_TRACE_SCOPED_EVENT(R_INIT);
@@ -105,7 +105,7 @@ Error Renderer::init(ThreadHive* hive, ResourceManager* resources, GrManager* gl
 	m_gr = gl;
 	m_stagingMem = stagingMem;
 	m_ui = ui;
-	m_alloc = alloc;
+	m_pool = pool;
 	m_config = config;
 
 	const Error err = initInternal(swapchainSize);
@@ -143,7 +143,7 @@ Error Renderer::initInternal(UVec2 swapchainResolution)
 	if(m_internalResolution.x() < 64 || m_internalResolution.y() < 64)
 	{
 		ANKI_R_LOGE("Incorrect sizes");
-		return Error::USER_DATA;
+		return Error::kUserData;
 	}
 
 	ANKI_CHECK(m_resources->loadResource("ShaderBinaries/ClearTextureCompute.ankiprogbin", m_clearTexComputeProg));
@@ -152,126 +152,126 @@ Error Renderer::initInternal(UVec2 swapchainResolution)
 	{
 		TextureInitInfo texinit("RendererDummy");
 		texinit.m_width = texinit.m_height = 4;
-		texinit.m_usage = TextureUsageBit::ALL_SAMPLED | TextureUsageBit::IMAGE_COMPUTE_WRITE;
-		texinit.m_format = Format::R8G8B8A8_UNORM;
-		TexturePtr tex = createAndClearRenderTarget(texinit, TextureUsageBit::ALL_SAMPLED);
+		texinit.m_usage = TextureUsageBit::kAllSampled | TextureUsageBit::kImageComputeWrite;
+		texinit.m_format = Format::kR8G8B8A8_Unorm;
+		TexturePtr tex = createAndClearRenderTarget(texinit, TextureUsageBit::kAllSampled);
 
 		TextureViewInitInfo viewinit(tex);
 		m_dummyTexView2d = getGrManager().newTextureView(viewinit);
 
 		texinit.m_depth = 4;
-		texinit.m_type = TextureType::_3D;
-		tex = createAndClearRenderTarget(texinit, TextureUsageBit::ALL_SAMPLED);
+		texinit.m_type = TextureType::k3D;
+		tex = createAndClearRenderTarget(texinit, TextureUsageBit::kAllSampled);
 		viewinit = TextureViewInitInfo(tex);
 		m_dummyTexView3d = getGrManager().newTextureView(viewinit);
 
 		m_dummyBuff = getGrManager().newBuffer(BufferInitInfo(
-			1024, BufferUsageBit::ALL_UNIFORM | BufferUsageBit::ALL_STORAGE, BufferMapAccessBit::NONE, "Dummy"));
+			1024, BufferUsageBit::kAllUniform | BufferUsageBit::kAllStorage, BufferMapAccessBit::kNone, "Dummy"));
 	}
 
 	// Init the stages. Careful with the order!!!!!!!!!!
-	m_genericCompute.reset(m_alloc.newInstance<GenericCompute>(this));
+	m_genericCompute.reset(newInstance<GenericCompute>(*m_pool, this));
 	ANKI_CHECK(m_genericCompute->init());
 
-	m_volumetricLightingAccumulation.reset(m_alloc.newInstance<VolumetricLightingAccumulation>(this));
+	m_volumetricLightingAccumulation.reset(newInstance<VolumetricLightingAccumulation>(*m_pool, this));
 	ANKI_CHECK(m_volumetricLightingAccumulation->init());
 
-	m_indirectDiffuseProbes.reset(m_alloc.newInstance<IndirectDiffuseProbes>(this));
+	m_indirectDiffuseProbes.reset(newInstance<IndirectDiffuseProbes>(*m_pool, this));
 	ANKI_CHECK(m_indirectDiffuseProbes->init());
 
-	m_probeReflections.reset(m_alloc.newInstance<ProbeReflections>(this));
+	m_probeReflections.reset(newInstance<ProbeReflections>(*m_pool, this));
 	ANKI_CHECK(m_probeReflections->init());
 
-	m_vrsSriGeneration.reset(m_alloc.newInstance<VrsSriGeneration>(this));
+	m_vrsSriGeneration.reset(newInstance<VrsSriGeneration>(*m_pool, this));
 	ANKI_CHECK(m_vrsSriGeneration->init());
 
-	m_scale.reset(m_alloc.newInstance<Scale>(this));
+	m_scale.reset(newInstance<Scale>(*m_pool, this));
 	ANKI_CHECK(m_scale->init());
 
-	m_gbuffer.reset(m_alloc.newInstance<GBuffer>(this));
+	m_gbuffer.reset(newInstance<GBuffer>(*m_pool, this));
 	ANKI_CHECK(m_gbuffer->init());
 
-	m_gbufferPost.reset(m_alloc.newInstance<GBufferPost>(this));
+	m_gbufferPost.reset(newInstance<GBufferPost>(*m_pool, this));
 	ANKI_CHECK(m_gbufferPost->init());
 
-	m_shadowMapping.reset(m_alloc.newInstance<ShadowMapping>(this));
+	m_shadowMapping.reset(newInstance<ShadowMapping>(*m_pool, this));
 	ANKI_CHECK(m_shadowMapping->init());
 
-	m_volumetricFog.reset(m_alloc.newInstance<VolumetricFog>(this));
+	m_volumetricFog.reset(newInstance<VolumetricFog>(*m_pool, this));
 	ANKI_CHECK(m_volumetricFog->init());
 
-	m_lightShading.reset(m_alloc.newInstance<LightShading>(this));
+	m_lightShading.reset(newInstance<LightShading>(*m_pool, this));
 	ANKI_CHECK(m_lightShading->init());
 
-	m_depthDownscale.reset(m_alloc.newInstance<DepthDownscale>(this));
+	m_depthDownscale.reset(newInstance<DepthDownscale>(*m_pool, this));
 	ANKI_CHECK(m_depthDownscale->init());
 
-	m_forwardShading.reset(m_alloc.newInstance<ForwardShading>(this));
+	m_forwardShading.reset(newInstance<ForwardShading>(*m_pool, this));
 	ANKI_CHECK(m_forwardShading->init());
 
-	m_lensFlare.reset(m_alloc.newInstance<LensFlare>(this));
+	m_lensFlare.reset(newInstance<LensFlare>(*m_pool, this));
 	ANKI_CHECK(m_lensFlare->init());
 
-	m_downscaleBlur.reset(getAllocator().newInstance<DownscaleBlur>(this));
+	m_downscaleBlur.reset(newInstance<DownscaleBlur>(*m_pool, this));
 	ANKI_CHECK(m_downscaleBlur->init());
 
-	m_indirectSpecular.reset(m_alloc.newInstance<IndirectSpecular>(this));
+	m_indirectSpecular.reset(newInstance<IndirectSpecular>(*m_pool, this));
 	ANKI_CHECK(m_indirectSpecular->init());
 
-	m_tonemapping.reset(getAllocator().newInstance<Tonemapping>(this));
+	m_tonemapping.reset(newInstance<Tonemapping>(*m_pool, this));
 	ANKI_CHECK(m_tonemapping->init());
 
-	m_temporalAA.reset(getAllocator().newInstance<TemporalAA>(this));
+	m_temporalAA.reset(newInstance<TemporalAA>(*m_pool, this));
 	ANKI_CHECK(m_temporalAA->init());
 
-	m_bloom.reset(m_alloc.newInstance<Bloom>(this));
+	m_bloom.reset(newInstance<Bloom>(*m_pool, this));
 	ANKI_CHECK(m_bloom->init());
 
-	m_finalComposite.reset(m_alloc.newInstance<FinalComposite>(this));
+	m_finalComposite.reset(newInstance<FinalComposite>(*m_pool, this));
 	ANKI_CHECK(m_finalComposite->init());
 
-	m_dbg.reset(m_alloc.newInstance<Dbg>(this));
+	m_dbg.reset(newInstance<Dbg>(*m_pool, this));
 	ANKI_CHECK(m_dbg->init());
 
-	m_uiStage.reset(m_alloc.newInstance<UiStage>(this));
+	m_uiStage.reset(newInstance<UiStage>(*m_pool, this));
 	ANKI_CHECK(m_uiStage->init());
 
-	m_indirectDiffuse.reset(m_alloc.newInstance<IndirectDiffuse>(this));
+	m_indirectDiffuse.reset(newInstance<IndirectDiffuse>(*m_pool, this));
 	ANKI_CHECK(m_indirectDiffuse->init());
 
 	if(getGrManager().getDeviceCapabilities().m_rayTracingEnabled && getConfig().getSceneRayTracedShadows())
 	{
-		m_accelerationStructureBuilder.reset(m_alloc.newInstance<AccelerationStructureBuilder>(this));
+		m_accelerationStructureBuilder.reset(newInstance<AccelerationStructureBuilder>(*m_pool, this));
 		ANKI_CHECK(m_accelerationStructureBuilder->init());
 
-		m_rtShadows.reset(m_alloc.newInstance<RtShadows>(this));
+		m_rtShadows.reset(newInstance<RtShadows>(*m_pool, this));
 		ANKI_CHECK(m_rtShadows->init());
 	}
 	else
 	{
-		m_shadowmapsResolve.reset(m_alloc.newInstance<ShadowmapsResolve>(this));
+		m_shadowmapsResolve.reset(newInstance<ShadowmapsResolve>(*m_pool, this));
 		ANKI_CHECK(m_shadowmapsResolve->init());
 	}
 
-	m_motionVectors.reset(m_alloc.newInstance<MotionVectors>(this));
+	m_motionVectors.reset(newInstance<MotionVectors>(*m_pool, this));
 	ANKI_CHECK(m_motionVectors->init());
 
-	m_clusterBinning.reset(m_alloc.newInstance<ClusterBinning>(this));
+	m_clusterBinning.reset(newInstance<ClusterBinning>(*m_pool, this));
 	ANKI_CHECK(m_clusterBinning->init());
 
 	// Init samplers
 	{
 		SamplerInitInfo sinit("Renderer");
-		sinit.m_addressing = SamplingAddressing::CLAMP;
-		sinit.m_mipmapFilter = SamplingFilter::NEAREST;
-		sinit.m_minMagFilter = SamplingFilter::NEAREST;
+		sinit.m_addressing = SamplingAddressing::kClamp;
+		sinit.m_mipmapFilter = SamplingFilter::kNearest;
+		sinit.m_minMagFilter = SamplingFilter::kNearest;
 		m_samplers.m_nearestNearestClamp = m_gr->newSampler(sinit);
 
-		sinit.m_minMagFilter = SamplingFilter::LINEAR;
-		sinit.m_mipmapFilter = SamplingFilter::LINEAR;
+		sinit.m_minMagFilter = SamplingFilter::kLinear;
+		sinit.m_mipmapFilter = SamplingFilter::kLinear;
 		m_samplers.m_trilinearClamp = m_gr->newSampler(sinit);
 
-		sinit.m_addressing = SamplingAddressing::REPEAT;
+		sinit.m_addressing = SamplingAddressing::kRepeat;
 		m_samplers.m_trilinearRepeat = m_gr->newSampler(sinit);
 
 		sinit.m_anisotropyLevel = m_config->getRTextureAnisotropy();
@@ -293,7 +293,7 @@ Error Renderer::initInternal(UVec2 swapchainResolution)
 		m_jitterOffsets[i] = generateJitter(i);
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error Renderer::populateRenderGraph(RenderingContext& ctx)
@@ -386,7 +386,7 @@ Error Renderer::populateRenderGraph(RenderingContext& ctx)
 	// Populate the uniforms
 	m_clusterBinning->writeClusterBuffersAsync();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void Renderer::finalize(const RenderingContext& ctx)
@@ -409,15 +409,14 @@ void Renderer::finalize(const RenderingContext& ctx)
 
 TextureInitInfo Renderer::create2DRenderTargetInitInfo(U32 w, U32 h, Format format, TextureUsageBit usage, CString name)
 {
-	ANKI_ASSERT(!!(usage & TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE)
-				|| !!(usage & TextureUsageBit::IMAGE_COMPUTE_WRITE));
+	ANKI_ASSERT(!!(usage & TextureUsageBit::kFramebufferWrite) || !!(usage & TextureUsageBit::kImageComputeWrite));
 	TextureInitInfo init(name);
 
 	init.m_width = w;
 	init.m_height = h;
 	init.m_depth = 1;
 	init.m_layerCount = 1;
-	init.m_type = TextureType::_2D;
+	init.m_type = TextureType::k2D;
 	init.m_format = format;
 	init.m_mipmapCount = 1;
 	init.m_samples = 1;
@@ -434,11 +433,11 @@ RenderTargetDescription Renderer::create2DRenderTargetDescription(U32 w, U32 h, 
 	init.m_height = h;
 	init.m_depth = 1;
 	init.m_layerCount = 1;
-	init.m_type = TextureType::_2D;
+	init.m_type = TextureType::k2D;
 	init.m_format = format;
 	init.m_mipmapCount = 1;
 	init.m_samples = 1;
-	init.m_usage = TextureUsageBit::NONE;
+	init.m_usage = TextureUsageBit::kNone;
 
 	return init;
 }
@@ -446,17 +445,17 @@ RenderTargetDescription Renderer::create2DRenderTargetDescription(U32 w, U32 h, 
 TexturePtr Renderer::createAndClearRenderTarget(const TextureInitInfo& inf, TextureUsageBit initialUsage,
 												const ClearValue& clearVal)
 {
-	ANKI_ASSERT(!!(inf.m_usage & TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE)
-				|| !!(inf.m_usage & TextureUsageBit::IMAGE_COMPUTE_WRITE));
+	ANKI_ASSERT(!!(inf.m_usage & TextureUsageBit::kFramebufferWrite)
+				|| !!(inf.m_usage & TextureUsageBit::kImageComputeWrite));
 
-	const U faceCount = (inf.m_type == TextureType::CUBE || inf.m_type == TextureType::CUBE_ARRAY) ? 6 : 1;
+	const U faceCount = (inf.m_type == TextureType::kCube || inf.m_type == TextureType::kCubeArray) ? 6 : 1;
 
 	Bool useCompute = false;
-	if(!!(inf.m_usage & TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE))
+	if(!!(inf.m_usage & TextureUsageBit::kFramebufferWrite))
 	{
 		useCompute = false;
 	}
-	else if(!!(inf.m_usage & TextureUsageBit::IMAGE_COMPUTE_WRITE))
+	else if(!!(inf.m_usage & TextureUsageBit::kImageComputeWrite))
 	{
 		useCompute = true;
 	}
@@ -470,10 +469,10 @@ TexturePtr Renderer::createAndClearRenderTarget(const TextureInitInfo& inf, Text
 
 	// Clear all surfaces
 	CommandBufferInitInfo cmdbinit;
-	cmdbinit.m_flags = CommandBufferFlag::GENERAL_WORK;
-	if((inf.m_mipmapCount * faceCount * inf.m_layerCount * 4) < COMMAND_BUFFER_SMALL_BATCH_MAX_COMMANDS)
+	cmdbinit.m_flags = CommandBufferFlag::kGeneralWork;
+	if((inf.m_mipmapCount * faceCount * inf.m_layerCount * 4) < kCommandBufferSmallBatchMaxCommands)
 	{
-		cmdbinit.m_flags |= CommandBufferFlag::SMALL_BATCH;
+		cmdbinit.m_flags |= CommandBufferFlag::kSmallBatch;
 	}
 	CommandBufferPtr cmdb = m_gr->newCommandBuffer(cmdbinit);
 
@@ -488,30 +487,30 @@ TexturePtr Renderer::createAndClearRenderTarget(const TextureInitInfo& inf, Text
 				if(!useCompute)
 				{
 					FramebufferInitInfo fbInit("RendererClearRT");
-					Array<TextureUsageBit, MAX_COLOR_ATTACHMENTS> colUsage = {};
-					TextureUsageBit dsUsage = TextureUsageBit::NONE;
+					Array<TextureUsageBit, kMaxColorRenderTargets> colUsage = {};
+					TextureUsageBit dsUsage = TextureUsageBit::kNone;
 
 					if(getFormatInfo(inf.m_format).isDepthStencil())
 					{
-						DepthStencilAspectBit aspect = DepthStencilAspectBit::NONE;
+						DepthStencilAspectBit aspect = DepthStencilAspectBit::kNone;
 						if(getFormatInfo(inf.m_format).isDepth())
 						{
-							aspect |= DepthStencilAspectBit::DEPTH;
+							aspect |= DepthStencilAspectBit::kDepth;
 						}
 
 						if(getFormatInfo(inf.m_format).isStencil())
 						{
-							aspect |= DepthStencilAspectBit::STENCIL;
+							aspect |= DepthStencilAspectBit::kStencil;
 						}
 
 						TextureViewPtr view = getGrManager().newTextureView(TextureViewInitInfo(tex, surf, aspect));
 
-						fbInit.m_depthStencilAttachment.m_textureView = view;
-						fbInit.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::CLEAR;
-						fbInit.m_depthStencilAttachment.m_stencilLoadOperation = AttachmentLoadOperation::CLEAR;
+						fbInit.m_depthStencilAttachment.m_textureView = std::move(view);
+						fbInit.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::kClear;
+						fbInit.m_depthStencilAttachment.m_stencilLoadOperation = AttachmentLoadOperation::kClear;
 						fbInit.m_depthStencilAttachment.m_clearValue = clearVal;
 
-						dsUsage = TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+						dsUsage = TextureUsageBit::kFramebufferWrite;
 					}
 					else
 					{
@@ -519,30 +518,33 @@ TexturePtr Renderer::createAndClearRenderTarget(const TextureInitInfo& inf, Text
 
 						fbInit.m_colorAttachmentCount = 1;
 						fbInit.m_colorAttachments[0].m_textureView = view;
-						fbInit.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::CLEAR;
+						fbInit.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::kClear;
 						fbInit.m_colorAttachments[0].m_clearValue = clearVal;
 
-						colUsage[0] = TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
+						colUsage[0] = TextureUsageBit::kFramebufferWrite;
 					}
 					FramebufferPtr fb = m_gr->newFramebuffer(fbInit);
 
-					cmdb->setTextureSurfaceBarrier(tex, TextureUsageBit::NONE,
-												   TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE, surf);
+					TextureBarrierInfo barrier = {tex.get(), TextureUsageBit::kNone, TextureUsageBit::kFramebufferWrite,
+												  surf};
+					barrier.m_subresource.m_depthStencilAspect = tex->getDepthStencilAspect();
+					cmdb->setPipelineBarrier({&barrier, 1}, {}, {});
 
 					cmdb->beginRenderPass(fb, colUsage, dsUsage);
 					cmdb->endRenderPass();
 
 					if(!!initialUsage)
 					{
-						cmdb->setTextureSurfaceBarrier(tex, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE, initialUsage,
-													   surf);
+						barrier.m_previousUsage = TextureUsageBit::kFramebufferWrite;
+						barrier.m_nextUsage = initialUsage;
+						cmdb->setPipelineBarrier({&barrier, 1}, {}, {});
 					}
 				}
 				else
 				{
 					// Compute
 					ShaderProgramResourceVariantInitInfo variantInitInfo(m_clearTexComputeProg);
-					variantInitInfo.addMutation("TEXTURE_DIMENSIONS", I32((inf.m_type == TextureType::_3D) ? 3 : 2));
+					variantInitInfo.addMutation("TEXTURE_DIMENSIONS", I32((inf.m_type == TextureType::k3D) ? 3 : 2));
 
 					const FormatInfo formatInfo = getFormatInfo(inf.m_format);
 					I32 componentType = 0;
@@ -570,19 +572,23 @@ TexturePtr Renderer::createAndClearRenderTarget(const TextureInitInfo& inf, Text
 					TextureViewPtr view = getGrManager().newTextureView(TextureViewInitInfo(tex, surf));
 					cmdb->bindImage(0, 0, view);
 
-					cmdb->setTextureSurfaceBarrier(tex, TextureUsageBit::NONE, TextureUsageBit::IMAGE_COMPUTE_WRITE,
-												   surf);
+					const TextureBarrierInfo barrier = {tex.get(), TextureUsageBit::kNone,
+														TextureUsageBit::kImageComputeWrite, surf};
+					cmdb->setPipelineBarrier({&barrier, 1}, {}, {});
 
 					UVec3 wgSize;
 					wgSize.x() = (8 - 1 + (tex->getWidth() >> mip)) / 8;
 					wgSize.y() = (8 - 1 + (tex->getHeight() >> mip)) / 8;
-					wgSize.z() = (inf.m_type == TextureType::_3D) ? ((8 - 1 + (tex->getDepth() >> mip)) / 8) : 1;
+					wgSize.z() = (inf.m_type == TextureType::k3D) ? ((8 - 1 + (tex->getDepth() >> mip)) / 8) : 1;
 
 					cmdb->dispatchCompute(wgSize.x(), wgSize.y(), wgSize.z());
 
 					if(!!initialUsage)
 					{
-						cmdb->setTextureSurfaceBarrier(tex, TextureUsageBit::IMAGE_COMPUTE_WRITE, initialUsage, surf);
+						const TextureBarrierInfo barrier = {tex.get(), TextureUsageBit::kImageComputeWrite,
+															initialUsage, surf};
+
+						cmdb->setPipelineBarrier({&barrier, 1}, {}, {});
 					}
 				}
 			}
@@ -606,18 +612,17 @@ void Renderer::registerDebugRenderTarget(RendererObject* obj, CString rtName)
 	ANKI_ASSERT(obj);
 	DebugRtInfo inf;
 	inf.m_obj = obj;
-	inf.m_rtName.create(getAllocator(), rtName);
+	inf.m_rtName.create(getMemoryPool(), rtName);
 
-	m_debugRts.emplaceBack(getAllocator(), std::move(inf));
+	m_debugRts.emplaceBack(getMemoryPool(), std::move(inf));
 }
 
-void Renderer::getCurrentDebugRenderTarget(RenderTargetHandle& handle, Bool& handleValid,
+Bool Renderer::getCurrentDebugRenderTarget(Array<RenderTargetHandle, kMaxDebugRenderTargets>& handles,
 										   ShaderProgramPtr& optionalShaderProgram)
 {
 	if(ANKI_LIKELY(m_currentDebugRtName.isEmpty()))
 	{
-		handleValid = false;
-		return;
+		return false;
 	}
 
 	RendererObject* obj = nullptr;
@@ -630,17 +635,17 @@ void Renderer::getCurrentDebugRenderTarget(RenderTargetHandle& handle, Bool& han
 	}
 	ANKI_ASSERT(obj);
 
-	obj->getDebugRenderTarget(m_currentDebugRtName, handle, optionalShaderProgram);
-	handleValid = true;
+	obj->getDebugRenderTarget(m_currentDebugRtName, handles, optionalShaderProgram);
+	return true;
 }
 
 void Renderer::setCurrentDebugRenderTarget(CString rtName)
 {
-	m_currentDebugRtName.destroy(getAllocator());
+	m_currentDebugRtName.destroy(getMemoryPool());
 
 	if(!rtName.isEmpty() && rtName.getLength() > 0)
 	{
-		m_currentDebugRtName.create(getAllocator(), rtName);
+		m_currentDebugRtName.create(getMemoryPool(), rtName);
 	}
 }
 
@@ -649,15 +654,15 @@ Format Renderer::getHdrFormat() const
 	Format out;
 	if(!m_config->getRHighQualityHdr())
 	{
-		out = Format::B10G11R11_UFLOAT_PACK32;
+		out = Format::kB10G11R11_Ufloat_Pack32;
 	}
 	else if(m_gr->getDeviceCapabilities().m_unalignedBbpTextureFormats)
 	{
-		out = Format::R16G16B16_SFLOAT;
+		out = Format::kR16G16B16_Sfloat;
 	}
 	else
 	{
-		out = Format::R16G16B16A16_SFLOAT;
+		out = Format::kR16G16B16A16_Sfloat;
 	}
 	return out;
 }
@@ -666,11 +671,11 @@ Format Renderer::getDepthNoStencilFormat() const
 {
 	if(ANKI_PLATFORM_MOBILE)
 	{
-		return Format::X8_D24_UNORM_PACK32;
+		return Format::kX8D24_Unorm_Pack32;
 	}
 	else
 	{
-		return Format::D32_SFLOAT;
+		return Format::kD32_Sfloat;
 	}
 }
 

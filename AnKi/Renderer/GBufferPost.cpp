@@ -32,9 +32,9 @@ Error GBufferPost::initInternal()
 	ANKI_CHECK(getResourceManager().loadResource("ShaderBinaries/GBufferPost.ankiprogbin", m_prog));
 
 	ShaderProgramResourceVariantInitInfo variantInitInfo(m_prog);
-	variantInitInfo.addConstant("TILE_COUNTS", m_r->getTileCounts());
-	variantInitInfo.addConstant("Z_SPLIT_COUNT", m_r->getZSplitCount());
-	variantInitInfo.addConstant("TILE_SIZE", m_r->getTileSize());
+	variantInitInfo.addConstant("kTileCount", m_r->getTileCounts());
+	variantInitInfo.addConstant("kZSplitCount", m_r->getZSplitCount());
+	variantInitInfo.addConstant("kTileSize", m_r->getTileSize());
 
 	const ShaderProgramResourceVariant* variant;
 	m_prog->getOrCreateVariant(variantInitInfo, variant);
@@ -42,11 +42,11 @@ Error GBufferPost::initInternal()
 
 	// Create FB descr
 	m_fbDescr.m_colorAttachmentCount = 2;
-	m_fbDescr.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::LOAD;
-	m_fbDescr.m_colorAttachments[1].m_loadOperation = AttachmentLoadOperation::LOAD;
+	m_fbDescr.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::kLoad;
+	m_fbDescr.m_colorAttachments[1].m_loadOperation = AttachmentLoadOperation::kLoad;
 	m_fbDescr.bake();
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void GBufferPost::populateRenderGraph(RenderingContext& ctx)
@@ -68,14 +68,11 @@ void GBufferPost::populateRenderGraph(RenderingContext& ctx)
 
 	rpass.setFramebufferInfo(m_fbDescr, {m_r->getGBuffer().getColorRt(0), m_r->getGBuffer().getColorRt(1)});
 
-	rpass.newDependency(
-		RenderPassDependency(m_r->getGBuffer().getColorRt(0), TextureUsageBit::ALL_FRAMEBUFFER_ATTACHMENT));
-	rpass.newDependency(
-		RenderPassDependency(m_r->getGBuffer().getColorRt(1), TextureUsageBit::ALL_FRAMEBUFFER_ATTACHMENT));
-	rpass.newDependency(RenderPassDependency(m_r->getGBuffer().getDepthRt(), TextureUsageBit::SAMPLED_FRAGMENT,
-											 TextureSubresourceInfo(DepthStencilAspectBit::DEPTH)));
-	rpass.newDependency(
-		RenderPassDependency(ctx.m_clusteredShading.m_clustersBufferHandle, BufferUsageBit::STORAGE_FRAGMENT_READ));
+	rpass.newTextureDependency(m_r->getGBuffer().getColorRt(0), TextureUsageBit::kAllFramebuffer);
+	rpass.newTextureDependency(m_r->getGBuffer().getColorRt(1), TextureUsageBit::kAllFramebuffer);
+	rpass.newTextureDependency(m_r->getGBuffer().getDepthRt(), TextureUsageBit::kSampledFragment,
+							   TextureSubresourceInfo(DepthStencilAspectBit::kDepth));
+	rpass.newBufferDependency(ctx.m_clusteredShading.m_clustersBufferHandle, BufferUsageBit::kStorageFragmentRead);
 }
 
 void GBufferPost::run(const RenderingContext& ctx, RenderPassWorkContext& rgraphCtx)
@@ -86,13 +83,13 @@ void GBufferPost::run(const RenderingContext& ctx, RenderPassWorkContext& rgraph
 	cmdb->setViewport(0, 0, m_r->getInternalResolution().x(), m_r->getInternalResolution().y());
 	cmdb->bindShaderProgram(m_grProg);
 
-	cmdb->setBlendFactors(0, BlendFactor::ONE, BlendFactor::SRC_ALPHA, BlendFactor::ZERO, BlendFactor::ONE);
-	cmdb->setBlendFactors(1, BlendFactor::ONE, BlendFactor::SRC_ALPHA, BlendFactor::ZERO, BlendFactor::ONE);
+	cmdb->setBlendFactors(0, BlendFactor::kOne, BlendFactor::kSrcAlpha, BlendFactor::kZero, BlendFactor::kOne);
+	cmdb->setBlendFactors(1, BlendFactor::kOne, BlendFactor::kSrcAlpha, BlendFactor::kZero, BlendFactor::kOne);
 
 	// Bind all
 	cmdb->bindSampler(0, 0, m_r->getSamplers().m_nearestNearestClamp);
 
-	rgraphCtx.bindTexture(0, 1, m_r->getGBuffer().getDepthRt(), TextureSubresourceInfo(DepthStencilAspectBit::DEPTH));
+	rgraphCtx.bindTexture(0, 1, m_r->getGBuffer().getDepthRt(), TextureSubresourceInfo(DepthStencilAspectBit::kDepth));
 
 	cmdb->bindSampler(0, 2, m_r->getSamplers().m_trilinearRepeat);
 
@@ -108,11 +105,11 @@ void GBufferPost::run(const RenderingContext& ctx, RenderPassWorkContext& rgraph
 	bindStorage(cmdb, 0, 7, rsrc.m_clustersToken);
 
 	// Draw
-	cmdb->drawArrays(PrimitiveTopology::TRIANGLES, 3);
+	cmdb->drawArrays(PrimitiveTopology::kTriangles, 3);
 
 	// Restore state
-	cmdb->setBlendFactors(0, BlendFactor::ONE, BlendFactor::ZERO);
-	cmdb->setBlendFactors(1, BlendFactor::ONE, BlendFactor::ZERO);
+	cmdb->setBlendFactors(0, BlendFactor::kOne, BlendFactor::kZero);
+	cmdb->setBlendFactors(1, BlendFactor::kOne, BlendFactor::kZero);
 }
 
 } // end namespace anki

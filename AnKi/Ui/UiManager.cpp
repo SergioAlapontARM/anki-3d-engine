@@ -25,13 +25,13 @@ Error UiManager::init(AllocAlignedCallback allocCallback, void* allocCallbackUse
 	ANKI_ASSERT(gpuMem);
 	ANKI_ASSERT(input);
 
-	m_alloc = UiAllocator(allocCallback, allocCallbackUserData);
+	m_pool.init(allocCallback, allocCallbackUserData);
 	m_resources = resources;
 	m_gr = gr;
 	m_gpuMem = gpuMem;
 	m_input = input;
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 } // end namespace anki

@@ -21,7 +21,7 @@
 #include <AnKi/Util/HighRezTimer.h>
 #include <AnKi/Util/List.h>
 #include <AnKi/Util/Logger.h>
-#include <AnKi/Util/Memory.h>
+#include <AnKi/Util/MemoryPool.h>
 #include <AnKi/Util/Hierarchy.h>
 #include <AnKi/Util/Ptr.h>
 #include <AnKi/Util/Singleton.h>
@@ -44,6 +44,7 @@
 #include <AnKi/Util/BuddyAllocatorBuilder.h>
 #include <AnKi/Util/StackAllocatorBuilder.h>
 #include <AnKi/Util/ClassAllocatorBuilder.h>
+#include <AnKi/Util/SegregatedListsAllocatorBuilder.h>
 
 /// @defgroup util Utilities (like STL)
 

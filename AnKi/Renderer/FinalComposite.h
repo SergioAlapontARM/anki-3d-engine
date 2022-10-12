@@ -29,7 +29,7 @@ public:
 	Error loadColorGradingTextureImage(CString filename);
 
 private:
-	static const U LUT_SIZE = 16;
+	static constexpr U kLutSize = 16;
 
 	FramebufferDescription m_fbDescr;
 
@@ -40,7 +40,6 @@ private:
 	ShaderProgramPtr m_defaultVisualizeRenderTargetGrProg;
 
 	ImageResourcePtr m_lut; ///< Color grading lookup texture.
-	ImageResourcePtr m_blueNoise;
 
 	Error initInternal();
 

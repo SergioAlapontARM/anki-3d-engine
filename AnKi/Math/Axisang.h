@@ -64,7 +64,7 @@ public:
 				return;
 			}
 
-			m_ang = PI;
+			m_ang = kPi;
 			m_axis.x() = (m3(0, 0) + T(1)) / T(2);
 			if(m_axis.x() > T(0))
 			{
@@ -186,7 +186,7 @@ public:
 	/// @name Other
 	/// @{
 	ANKI_ENABLE_METHOD(std::is_floating_point<T>::value)
-	void toString(StringAuto& str) const
+	void toString(StringRaii& str) const
 	{
 		str.sprintf("%f %f %f | %f", m_axis.x(), m_axis.y(), m_axis.z(), m_ang);
 	}

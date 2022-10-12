@@ -26,12 +26,12 @@ namespace anki {
 GrUpscalerImpl::~GrUpscalerImpl()
 {
 #if ANKI_DLSS
-	if(m_upscalerType == GrUpscalerType::DLSS_2)
+	if(m_upscalerType == GrUpscalerType::kDlss2)
 	{
 		destroyDlss();
 	}
 #endif
-	if(m_upscalerType == GrUpscalerType::FSR_2)
+	if(m_upscalerType == GrUpscalerType::kFsr2)
 	{
 		destroyFsr2();
 	}
@@ -42,22 +42,22 @@ Error GrUpscalerImpl::initInternal(const GrUpscalerInitInfo& initInfo)
 	m_upscalerType = initInfo.m_upscalerType;
 
 	// Try to use DLSS
-	if(m_upscalerType == GrUpscalerType::DLSS_2)
+	if(m_upscalerType == GrUpscalerType::kDlss2)
 	{
 #if ANKI_DLSS
 		ANKI_CHECK(initDlss(initInfo));
 #else
-		return Error::FUNCTION_FAILED;
+		return Error::kFunctionFailed;
 #endif
 	}
 
 	// Use FSR 2
-	if(m_upscalerType == GrUpscalerType::FSR_2)
+	if(m_upscalerType == GrUpscalerType::kFsr2)
 	{
 		ANKI_CHECK(initFsr2(initInfo));
 	}
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 // ==== DLSS ====
@@ -70,13 +70,13 @@ Error GrUpscalerImpl::initInternal(const GrUpscalerInitInfo& initInfo)
 			if(NVSDK_NGX_FAILED(result)) \
 			{ \
 				ANKI_VK_LOGE("DLSS failed to initialize %ls", GetNGXResultAsString(result)); \
-				return Error::FUNCTION_FAILED; \
+				return Error::kFunctionFailed; \
 			} \
 		} while(0)
 
 static NVSDK_NGX_PerfQuality_Value getDlssQualityModeToNVQualityMode(GrUpscalerQualityMode mode)
 {
-	static Array<NVSDK_NGX_PerfQuality_Value, U32(GrUpscalerQualityMode::COUNT)> nvQualityModes = {
+	static Array<NVSDK_NGX_PerfQuality_Value, U32(GrUpscalerQualityMode::kCount)> nvQualityModes = {
 		NVSDK_NGX_PerfQuality_Value_MaxPerf, NVSDK_NGX_PerfQuality_Value_Balanced,
 		NVSDK_NGX_PerfQuality_Value_MaxQuality};
 
@@ -96,9 +96,9 @@ Error GrUpscalerImpl::initDlss(const GrUpscalerInitInfo& initInfo)
 	ANKI_NGX_CHECK(NVSDK_NGX_VULKAN_GetCapabilityParameters(&m_ngxParameters));
 	ANKI_ASSERT(m_ngxParameters);
 
-	// Currently, the SDK and this sample are not in sync.  The sample is a bit forward looking,
-	// in this case.  This will likely be resolved very shortly, and therefore, the code below
-	// should be thought of as needed for a smooth user experience.
+	// Currently, the SDK and this sample are not in sync.  The sample is a bit forward looking, in this case. This will
+	// likely be resolved very shortly, and therefore, the code below should be thought of as needed for a smooth user
+	// experience.
 #	if defined(NVSDK_NGX_Parameter_SuperSampling_NeedsUpdatedDriver) \
 		&& defined(NVSDK_NGX_Parameter_SuperSampling_MinDriverVersionMajor) \
 		&& defined(NVSDK_NGX_Parameter_SuperSampling_MinDriverVersionMinor)
@@ -110,7 +110,7 @@ Error GrUpscalerImpl::initDlss(const GrUpscalerInitInfo& initInfo)
 	if(needsUpdatedDriver)
 	{
 		ANKI_VK_LOGE("DLSS cannot be loaded due to outdated driver");
-		return Error::FUNCTION_FAILED;
+		return Error::kFunctionFailed;
 	}
 #	endif
 
@@ -119,14 +119,14 @@ Error GrUpscalerImpl::initDlss(const GrUpscalerInitInfo& initInfo)
 	if(!dlssAvailable)
 	{
 		ANKI_VK_LOGE("NVIDIA DLSS not available on this hardware/platform");
-		return Error::FUNCTION_FAILED;
+		return Error::kFunctionFailed;
 	}
 
 	// Create the feature
 	ANKI_CHECK(createDlssFeature(initInfo.m_sourceTextureResolution, initInfo.m_targetTextureResolution,
 								 initInfo.m_qualityMode));
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 Error GrUpscalerImpl::createDlssFeature(const UVec2& srcRes, const UVec2& dstRes, const GrUpscalerQualityMode quality)
@@ -154,7 +154,7 @@ Error GrUpscalerImpl::createDlssFeature(const UVec2& srcRes, const UVec2& dstRes
 
 	// Create the feature with a tmp CmdBuffer
 	CommandBufferInitInfo cmdbinit;
-	cmdbinit.m_flags = CommandBufferFlag::GENERAL_WORK | CommandBufferFlag::SMALL_BATCH;
+	cmdbinit.m_flags = CommandBufferFlag::kGeneralWork | CommandBufferFlag::kSmallBatch;
 	CommandBufferPtr cmdb = getManager().newCommandBuffer(cmdbinit);
 	CommandBufferImpl& cmdbImpl = static_cast<CommandBufferImpl&>(*cmdb);
 
@@ -167,7 +167,7 @@ Error GrUpscalerImpl::createDlssFeature(const UVec2& srcRes, const UVec2& dstRes
 	cmdb->flush({}, &fence);
 	fence->clientWait(60.0_sec);
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void GrUpscalerImpl::destroyDlss()
@@ -201,7 +201,7 @@ static void fsr2ErrorCallback(const char* msg)
 Error GrUpscalerImpl::initFsr2(const GrUpscalerInitInfo& initInfo)
 {
 	m_fsr2MemorySize = ffxFsr2GetScratchMemorySize();
-	m_fsr2Memory = getAllocator().allocate(m_fsr2MemorySize);
+	m_fsr2Memory = getMemoryPool().allocate(m_fsr2MemorySize, 16);
 	FfxFsr2ContextDescription fsr2Init{};
 	ANKI_ASSERT(m_fsr2Memory);
 	FfxErrorCode errorCode = ffxFsr2GetInterface(&fsr2Init.callbacks, m_fsr2Memory, m_fsr2MemorySize, initInfo.m_r);
@@ -216,11 +216,11 @@ Error GrUpscalerImpl::initFsr2(const GrUpscalerInitInfo& initInfo)
 
 	ANKI_ASSERT(!m_fsr2Ctx);
 	ffxAssertSetPrintingCallback(fsr2ErrorCallback);
-	m_fsr2Ctx = getAllocator().newInstance<FfxFsr2Context>();
+	m_fsr2Ctx = anki::newInstance<FfxFsr2Context>(getMemoryPool());
 	errorCode = ffxFsr2ContextCreate(m_fsr2Ctx, &fsr2Init);
 	FFX_ASSERT(errorCode == FFX_OK);
 
-	return Error::NONE;
+	return Error::kNone;
 }
 
 void GrUpscalerImpl::destroyFsr2()
@@ -228,8 +228,8 @@ void GrUpscalerImpl::destroyFsr2()
 	// Destroy FSR2 context (ownership of the memory belongs to the user)
 	ffxFsr2ContextDestroy(m_fsr2Ctx);
 
-	getAllocator().deleteInstance<FfxFsr2Context>(m_fsr2Ctx);
-	getAllocator().deallocate(m_fsr2Memory, m_fsr2MemorySize);
+	anki::deleteInstance<FfxFsr2Context>(getMemoryPool(), m_fsr2Ctx);
+	getMemoryPool().free(m_fsr2Memory);
 	m_fsr2Ctx = nullptr;
 	m_fsr2Memory = nullptr;
 }
